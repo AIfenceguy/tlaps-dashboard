@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLAPS Catalog Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green: #1b3a1e;
+    --green-2: #2d5a32;
+    --gold: #b8965a;
+    --cream: #faf8f3;
+    --text: #1a1a1a;
+    --border: #d9d5c7;
+    --red: #8b2424;
+    --gray-text: #6c6c6c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Outfit', system-ui, sans-serif;
+    color: var(--text);
+    background: var(--cream);
+  }
+  header {
+    background: var(--green);
+    color: var(--cream);
+    padding: 20px 32px;
+  }
+  header h1 { font-family: 'Playfair Display', serif; font-size: 28px; margin: 0 0 4px; }
+  header .tag { color: var(--gold); font-size: 14px; }
+  nav {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 12px 32px;
+    display: flex;
+    gap: 12px;
+  }
+  nav button {
+    background: none;
+    border: 1px solid var(--border);
+    padding: 8px 16px;
+    font-family: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 4px;
+    color: var(--text);
+  }
+  nav button.active { background: var(--green); color: var(--cream); border-color: var(--green); }
+  main { padding: 24px 32px; }
+  .filter-bar {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    align-items: center;
+  }
+  .filter-bar input, .filter-bar select {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 14px;
+    background: #fff;
+  }
+  .filter-bar input[type="search"] { min-width: 280px; }
+  .stats { color: var(--gray-text); font-size: 14px; margin-left: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    font-size: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  thead { background: var(--green); color: var(--cream); }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  tbody tr { cursor: pointer; transition: background 0.1s; }
+  tbody tr:hover { background: #f5f1e8; }
+  tbody tr.expanded { background: #f5f1e8; }
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .pill.live { background: #d4e6d4; color: var(--green); }
+  .pill.draft { background: #fff3d4; color: #7a5d1a; }
+  .pill.nis { background: #e5e5e5; color: var(--gray-text); }
+  .pill.yes { background: var(--green); color: var(--cream); }
+  .pill.no  { background: #f0e0e0; color: var(--red); }
+  .detail-row td { background: var(--cream); padding: 20px; border-top: 2px solid var(--gold); }
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .detail-block h4 {
+    margin: 0 0 8px;
+    color: var(--green);
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+  }
+  .detail-block p { margin: 0 0 10px; line-height: 1.5; }
+  .detail-block ul { padding-left: 18px; margin: 0; }
+  .detail-block li { margin-bottom: 6px; line-height: 1.4; }
+  .detail-block .muted { color: var(--gray-text); font-style: italic; }
+  .keyword-pill {
+    display: inline-block;
+    background: #fff;
+    border: 1px solid var(--gold);
+    color: var(--green);
+    padding: 2px 8px;
+    margin: 2px 4px 2px 0;
+    border-radius: 3px;
+    font-size: 12px;
+  }
+  .img-slot-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .img-slot {
+    text-align: center;
+    padding: 10px 4px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 11px;
+    background: #fff;
+  }
+  .img-slot.uploaded { border-color: var(--green); }
+  .img-slot.uploaded .label { color: var(--green); font-weight: 500; }
+  .img-slot.pending { background: #f5f1e8; opacity: 0.6; }
+  .img-slot .slot-name { font-family: 'Playfair Display', serif; font-size: 13px; }
+  .img-slot .label { font-size: 10px; text-transform: uppercase; }
+  .loading { padding: 40px; text-align: center; color: var(--gray-text); }
+  .kw-result {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .kw-result h3 { margin: 0 0 4px; font-family: 'Playfair Display', serif; color: var(--green); }
+  .kw-result .asin { color: var(--gray-text); font-size: 12px; margin-bottom: 8px; }
+  .kw-hits { font-size: 13px; }
+  .kw-hits .loc { color: var(--gold); font-weight: 600; text-transform: uppercase; font-size: 11px; margin-right: 4px; }
+  mark { background: #fff3d4; padding: 0 2px; }
+  a.asin-link { color: var(--green); text-decoration: none; border-bottom: 1px dotted var(--green); }
+  a.asin-link:hover { color: var(--gold); border-color: var(--gold); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>TLAPS Catalog Dashboard</h1>
+  <div class="tag">Commercial Grade. Consumer Priced.</div>
+</header>
+
+<nav>
+  <button class="active" data-view="grid">Products</button>
+  <button data-view="keyword">Keyword Search</button>
+</nav>
+
+<main id="app">
+  <div class="loading">Loading…</div>
+</main>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const SUPABASE_URL = 'https://poescwjdppbweqfdqcue.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvZXNjd2pkcHBid2VxZmRxY3VlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMzM2MTUsImV4cCI6MjA5MTcwOTYxNX0.0Z7VH3xyj-Px8U4qe5-_EGvULnr-UVvrYBk3G6aJPNo';
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const app = document.getElementById('app');
+const state = {
+  view: 'grid',
+  products: [],
+  listings: {},
+  images: {},
+  filters: { search: '', category: '', status: '', cost_confirmed: '' },
+  expandedSku: null,
+};
+
+async function loadData() {
+  const [pRes, lRes, iRes] = await Promise.all([
+    sb.from('products').select('*').eq('status', 'live').order('category'),
+    sb.from('listings').select('*'),
+    sb.from('images').select('*'),
+  ]);
+  if (pRes.error) throw pRes.error;
+  state.products = pRes.data;
+  state.listings = {};
+  for (const l of (lRes.data || [])) state.listings[l.tlaps_sku] = l;
+  state.images = {};
+  for (const i of (iRes.data || [])) {
+    (state.images[i.tlaps_sku] ||= []).push(i);
+  }
+}
+
+function escapeHTML(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+
+function yesNoPill(v) {
+  return v ? '<span class="pill yes">Yes</span>' : '<span class="pill no">No</span>';
+}
+
+function statusPill(s) {
+  const cls = s === 'live' ? 'live' : (s === 'draft' ? 'draft' : 'nis');
+  return `<span class="pill ${cls}">${escapeHTML(s || 'n/a')}</span>`;
+}
+
+function renderGridView() {
+  const categories = [...new Set(state.products.map(p => p.category).filter(Boolean))].sort();
+  const statuses   = [...new Set(state.products.map(p => p.status).filter(Boolean))].sort();
+
+  const filtered = state.products.filter(p => {
+    const l = state.listings[p.tlaps_sku] || {};
+    if (state.filters.category && p.category !== state.filters.category) return false;
+    if (state.filters.status && p.status !== state.filters.status) return false;
+    if (state.filters.cost_confirmed !== '' && String(p.cost_confirmed) !== state.filters.cost_confirmed) return false;
+    if (state.filters.search) {
+      const q = state.filters.search.toLowerCase();
+      const hay = [p.tlaps_sku, p.dhg_sku, p.asin, l.gen_title, l.gen_keywords].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  app.innerHTML = `
+    <div class="filter-bar">
+      <input type="search" id="search" placeholder="Search SKU, ASIN, title, keywords…" value="${escapeHTML(state.filters.search)}">
+      <select id="cat">
+        <option value="">All categories</option>
+        ${categories.map(c => `<option value="${c}" ${c===state.filters.category?'selected':''}>${c}</option>`).join('')}
+      </select>
+      <select id="status">
+        <option value="">All statuses</option>
+        ${statuses.map(s => `<option value="${s}" ${s===state.filters.status?'selected':''}>${s}</option>`).join('')}
+      </select>
+      <select id="cost">
+        <option value="">Cost confirmed: any</option>
+        <option value="true" ${state.filters.cost_confirmed==='true'?'selected':''}>Yes</option>
+        <option value="false" ${state.filters.cost_confirmed==='false'?'selected':''}>No</option>
+      </select>
+      <div class="stats">${filtered.length} / ${state.products.length} products</div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>ASIN</th>
+          <th>TLAPS SKU</th>
+          <th>DHG SKU</th>
+          <th>Category</th>
+          <th>Status</th>
+          <th>Cost ✓</th>
+          <th>Images</th>
+          <th>A+</th>
+          <th>MAP</th>
+          <th>Score</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filtered.map(p => renderRow(p)).join('')}
+      </tbody>
+    </table>
+  `;
+
+  document.getElementById('search').oninput = e => { state.filters.search = e.target.value; renderGridView(); document.getElementById('search').focus(); };
+  document.getElementById('cat').onchange = e => { state.filters.category = e.target.value; renderGridView(); };
+  document.getElementById('status').onchange = e => { state.filters.status = e.target.value; renderGridView(); };
+  document.getElementById('cost').onchange = e => { state.filters.cost_confirmed = e.target.value; renderGridView(); };
+
+  document.querySelectorAll('tbody tr[data-sku]').forEach(tr => {
+    tr.onclick = () => {
+      state.expandedSku = state.expandedSku === tr.dataset.sku ? null : tr.dataset.sku;
+      renderGridView();
+    };
+  });
+}
+
+function renderRow(p) {
+  const l = state.listings[p.tlaps_sku] || {};
+  const expanded = state.expandedSku === p.tlaps_sku;
+  const uploadedImgs = (state.images[p.tlaps_sku] || []).filter(i => i.status === 'uploaded').length;
+  const imageLabel = uploadedImgs > 0 ? `${uploadedImgs}/7 ✓` : 'None';
+  const asinLink = p.asin ? `<a class="asin-link" href="https://www.amazon.com/dp/${p.asin}" target="_blank" rel="noopener">${p.asin}</a>` : '—';
+  return `
+    <tr data-sku="${escapeHTML(p.tlaps_sku)}" class="${expanded?'expanded':''}">
+      <td>${asinLink}</td>
+      <td><strong>${escapeHTML(p.tlaps_sku)}</strong></td>
+      <td>${escapeHTML(p.dhg_sku || '—')}</td>
+      <td>${escapeHTML(p.category || '—')}</td>
+      <td>${statusPill(p.status)}</td>
+      <td>${yesNoPill(p.cost_confirmed)}</td>
+      <td>${imageLabel}</td>
+      <td>${yesNoPill(p.aplus_submitted)}</td>
+      <td>${p.map_price ? '$'+Number(p.map_price).toFixed(2) : '—'}</td>
+      <td>${l.content_score != null ? l.content_score : '—'}</td>
+    </tr>
+    ${expanded ? renderDetailRow(p, l) : ''}
+  `;
+}
+
+function renderDetailRow(p, l) {
+  const bullets = [l.gen_bullet_1, l.gen_bullet_2, l.gen_bullet_3, l.gen_bullet_4, l.gen_bullet_5].filter(Boolean);
+  const liveBullets = [l.live_bullet_1, l.live_bullet_2, l.live_bullet_3, l.live_bullet_4, l.live_bullet_5].filter(Boolean);
+  const keywords = (l.gen_keywords || '').split(/[\s,]+/).filter(Boolean);
+  const slots = ['MAIN','PT01','PT02','PT03','PT04','PT05','PT06'];
+  const imgBySlot = {};
+  for (const i of (state.images[p.tlaps_sku] || [])) imgBySlot[i.slot] = i;
+
+  return `
+    <tr class="detail-row">
+      <td colspan="10">
+        <div class="detail-grid">
+          <div class="detail-block">
+            <h4>Generated Listing Content</h4>
+            <p><strong>Title:</strong> ${l.gen_title ? escapeHTML(l.gen_title) : '<span class="muted">not generated</span>'}</p>
+            ${bullets.length ? `<strong>Bullets:</strong><ul>${bullets.map(b => `<li>${escapeHTML(b)}</li>`).join('')}</ul>` : '<p class="muted">No bullets</p>'}
+            ${l.gen_description ? `<p><strong>Description:</strong> ${escapeHTML(l.gen_description.slice(0, 400))}${l.gen_description.length>400?'…':''}</p>` : ''}
+          </div>
+          <div class="detail-block">
+            <h4>Live Listing (from VC scrape)</h4>
+            ${l.live_title ? `<p><strong>Title:</strong> ${escapeHTML(l.live_title)}</p>` : '<p class="muted">Not yet scraped</p>'}
+            ${liveBullets.length ? `<strong>Bullets:</strong><ul>${liveBullets.map(b => `<li>${escapeHTML(b)}</li>`).join('')}</ul>` : ''}
+            ${l.live_price ? `<p><strong>Live price:</strong> $${l.live_price}</p>` : ''}
+            ${l.live_review_count != null ? `<p><strong>Reviews:</strong> ${l.live_review_count} (${l.live_avg_rating || '—'}★)</p>` : ''}
+          </div>
+          <div class="detail-block">
+            <h4>Keywords (${keywords.length})</h4>
+            <div>${keywords.slice(0, 60).map(k => `<span class="keyword-pill">${escapeHTML(k)}</span>`).join('')}</div>
+            ${keywords.length > 60 ? `<p class="muted" style="margin-top:8px">+${keywords.length-60} more</p>` : ''}
+          </div>
+          <div class="detail-block">
+            <h4>Image Slots</h4>
+            <div class="img-slot-grid">
+              ${slots.map(s => {
+                const img = imgBySlot[s];
+                const status = img?.status || 'missing';
+                const cls = status === 'uploaded' ? 'uploaded' : 'pending';
+                const skipNote = img?.skip ? ' (skip)' : '';
+                return `<div class="img-slot ${cls}"><div class="slot-name">${s}</div><div class="label">${status}${skipNote}</div></div>`;
+              }).join('')}
+            </div>
+            ${l.revision_number ? `<p style="margin-top:12px"><strong>Revision:</strong> ${l.revision_number}</p>` : ''}
+            ${p.updated_at ? `<p class="muted" style="font-size:12px">Updated ${new Date(p.updated_at).toLocaleString()}</p>` : ''}
+          </div>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+function renderKeywordSearch() {
+  app.innerHTML = `
+    <div class="filter-bar">
+      <input type="search" id="kwsearch" placeholder="Type a keyword to see which SKUs use it…" autofocus>
+      <div class="stats" id="kwstats"></div>
+    </div>
+    <div id="kwresults"></div>
+  `;
+
+  const input = document.getElementById('kwsearch');
+  const results = document.getElementById('kwresults');
+  const stats = document.getElementById('kwstats');
+
+  input.oninput = () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q || q.length < 2) {
+      results.innerHTML = '<p class="loading">Type at least 2 characters…</p>';
+      stats.textContent = '';
+      return;
+    }
+    const hits = [];
+    for (const p of state.products) {
+      const l = state.listings[p.tlaps_sku] || {};
+      const locs = [];
+      const fields = {
+        title: l.gen_title,
+        bullet_1: l.gen_bullet_1,
+        bullet_2: l.gen_bullet_2,
+        bullet_3: l.gen_bullet_3,
+        bullet_4: l.gen_bullet_4,
+        bullet_5: l.gen_bullet_5,
+        description: l.gen_description,
+        backend: l.gen_keywords,
+      };
+      for (const [loc, text] of Object.entries(fields)) {
+        if (text && text.toLowerCase().includes(q)) locs.push({ loc, text });
+      }
+      if (locs.length) hits.push({ p, l, locs });
+    }
+    stats.textContent = `${hits.length} SKU${hits.length===1?'':'s'} match`;
+    results.innerHTML = hits.map(h => {
+      const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'ig');
+      return `
+        <div class="kw-result">
+          <h3>${escapeHTML(h.l.gen_title || h.p.tlaps_sku)}</h3>
+          <div class="asin">${escapeHTML(h.p.tlaps_sku)} · ${escapeHTML(h.p.asin || '')} · ${escapeHTML(h.p.category || '')}</div>
+          <div class="kw-hits">
+            ${h.locs.map(({ loc, text }) => `<div><span class="loc">${loc}:</span>${escapeHTML(text.slice(0, 200)).replace(re, '<mark>$1</mark>')}${text.length>200?'…':''}</div>`).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
+  };
+}
+
+function setView(view) {
+  state.view = view;
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  if (view === 'grid') renderGridView();
+  else renderKeywordSearch();
+}
+
+document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+
+loadData()
+  .then(() => setView('grid'))
+  .catch(e => {
+    console.error(e);
+    app.innerHTML = `<div class="loading" style="color:var(--red)">Failed to load: ${escapeHTML(e.message || String(e))}</div>`;
+  });
+</script>
+</body>
+</html>

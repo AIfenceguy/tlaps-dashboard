@@ -187,19 +187,28 @@ const state = {
   dashboard: {},
   listings: {},
   images: {},
-  filters: { search: '', category: '', status: '', cost_confirmed: '' },
+  filters: { search: '', category: '', status: '', cost_confirmed: '', include_legacy: false },
   expandedSku: null,
 };
 
 async function loadData() {
-  const [pRes, dRes, lRes, iRes] = await Promise.all([
+  // Fetch live + DHG-legacy rows (status=draft + vendor_code=DHG-LEGACY).
+  // Legacy rows are hidden by default but selectable via the "Include legacy" toggle.
+  const [pLive, pLegacy, dRes, lRes, iRes] = await Promise.all([
     sb.from('products').select('*').eq('status', 'live').order('category'),
+    sb.from('products').select('*').eq('vendor_code', 'DHG-LEGACY'),
     sb.from('product_dashboard').select('tlaps_sku,margin_pct,keyword_count,live_image_count,verdict,amz_selling_price'),
     sb.from('listings').select('*'),
     sb.from('images').select('*'),
   ]);
-  if (pRes.error) throw pRes.error;
-  state.products = pRes.data;
+  if (pLive.error) throw pLive.error;
+  const seen = new Set();
+  state.products = [];
+  for (const p of [...(pLive.data || []), ...(pLegacy.data || [])]) {
+    if (seen.has(p.tlaps_sku)) continue;
+    seen.add(p.tlaps_sku);
+    state.products.push(p);
+  }
   state.dashboard = {};
   for (const d of (dRes.data || [])) state.dashboard[d.tlaps_sku] = d;
   state.listings = {};
@@ -230,6 +239,8 @@ function renderGridView() {
 
   const filtered = state.products.filter(p => {
     const l = state.listings[p.tlaps_sku] || {};
+    const isLegacy = p.vendor_code === 'DHG-LEGACY' || (!p.upc && !p.vendor_code);
+    if (isLegacy && !state.filters.include_legacy) return false;
     if (state.filters.category && p.category !== state.filters.category) return false;
     if (state.filters.status && p.status !== state.filters.status) return false;
     if (state.filters.cost_confirmed !== '' && String(p.cost_confirmed) !== state.filters.cost_confirmed) return false;
@@ -240,6 +251,7 @@ function renderGridView() {
     }
     return true;
   });
+  const legacyCount = state.products.filter(p => p.vendor_code === 'DHG-LEGACY').length;
 
   app.innerHTML = `
     <div class="filter-bar">
@@ -257,7 +269,11 @@ function renderGridView() {
         <option value="true" ${state.filters.cost_confirmed==='true'?'selected':''}>Yes</option>
         <option value="false" ${state.filters.cost_confirmed==='false'?'selected':''}>No</option>
       </select>
-      <div class="stats">${filtered.length} / ${state.products.length} products</div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--gray-text);cursor:pointer;">
+        <input type="checkbox" id="legacy" ${state.filters.include_legacy?'checked':''}>
+        Include DHG-legacy (${legacyCount})
+      </label>
+      <div class="stats">${filtered.length} shown · ${state.products.length - legacyCount} live</div>
     </div>
     <table>
       <thead>
@@ -286,6 +302,7 @@ function renderGridView() {
   document.getElementById('cat').onchange = e => { state.filters.category = e.target.value; renderGridView(); };
   document.getElementById('status').onchange = e => { state.filters.status = e.target.value; renderGridView(); };
   document.getElementById('cost').onchange = e => { state.filters.cost_confirmed = e.target.value; renderGridView(); };
+  document.getElementById('legacy').onchange = e => { state.filters.include_legacy = e.target.checked; renderGridView(); };
 
   document.querySelectorAll('tbody tr[data-sku]').forEach(tr => {
     tr.onclick = () => {

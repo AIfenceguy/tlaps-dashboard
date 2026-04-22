@@ -184,6 +184,7 @@ const app = document.getElementById('app');
 const state = {
   view: 'grid',
   products: [],
+  dashboard: {},
   listings: {},
   images: {},
   filters: { search: '', category: '', status: '', cost_confirmed: '' },
@@ -191,13 +192,16 @@ const state = {
 };
 
 async function loadData() {
-  const [pRes, lRes, iRes] = await Promise.all([
+  const [pRes, dRes, lRes, iRes] = await Promise.all([
     sb.from('products').select('*').eq('status', 'live').order('category'),
+    sb.from('product_dashboard').select('tlaps_sku,margin_pct,keyword_count,live_image_count,verdict,amz_selling_price'),
     sb.from('listings').select('*'),
     sb.from('images').select('*'),
   ]);
   if (pRes.error) throw pRes.error;
   state.products = pRes.data;
+  state.dashboard = {};
+  for (const d of (dRes.data || [])) state.dashboard[d.tlaps_sku] = d;
   state.listings = {};
   for (const l of (lRes.data || [])) state.listings[l.tlaps_sku] = l;
   state.images = {};
@@ -258,15 +262,17 @@ function renderGridView() {
     <table>
       <thead>
         <tr>
-          <th>ASIN</th>
+          <th>Amazon ASIN</th>
           <th>TLAPS SKU</th>
           <th>DHG SKU</th>
+          <th>UPC</th>
           <th>Category</th>
           <th>Status</th>
           <th>Cost ✓</th>
           <th>Images</th>
           <th>A+</th>
           <th>MAP</th>
+          <th>Margin</th>
           <th>Score</th>
         </tr>
       </thead>
@@ -291,39 +297,63 @@ function renderGridView() {
 
 function renderRow(p) {
   const l = state.listings[p.tlaps_sku] || {};
+  const d = state.dashboard[p.tlaps_sku] || {};
   const expanded = state.expandedSku === p.tlaps_sku;
   const uploadedImgs = (state.images[p.tlaps_sku] || []).filter(i => i.status === 'uploaded').length;
   const imageLabel = uploadedImgs > 0 ? `${uploadedImgs}/7 ✓` : 'None';
   const asinLink = p.asin ? `<a class="asin-link" href="https://www.amazon.com/dp/${p.asin}" target="_blank" rel="noopener">${p.asin}</a>` : '—';
+  // Legacy/DHG-original rows have no UPC and no vendor_code (e.g., PP9PR with B0915RDQ7G)
+  const isLegacy = !p.upc && !p.vendor_code;
+  const legacyBadge = isLegacy ? ' <span class="pill nis" title="DHG original — pre-TLAPS launch entry">DHG orig</span>' : '';
+  const margin = d.margin_pct != null ? Number(d.margin_pct).toFixed(1) + '%' : '—';
   return `
     <tr data-sku="${escapeHTML(p.tlaps_sku)}" class="${expanded?'expanded':''}">
       <td>${asinLink}</td>
-      <td><strong>${escapeHTML(p.tlaps_sku)}</strong></td>
+      <td><strong>${escapeHTML(p.tlaps_sku)}</strong>${legacyBadge}</td>
       <td>${escapeHTML(p.dhg_sku || '—')}</td>
+      <td>${p.upc ? '<code>'+escapeHTML(p.upc)+'</code>' : '—'}</td>
       <td>${escapeHTML(p.category || '—')}</td>
       <td>${statusPill(p.status)}</td>
       <td>${yesNoPill(p.cost_confirmed)}</td>
       <td>${imageLabel}</td>
       <td>${yesNoPill(p.aplus_submitted)}</td>
       <td>${p.map_price ? '$'+Number(p.map_price).toFixed(2) : '—'}</td>
+      <td>${margin}</td>
       <td>${l.content_score != null ? l.content_score : '—'}</td>
     </tr>
-    ${expanded ? renderDetailRow(p, l) : ''}
+    ${expanded ? renderDetailRow(p, l, d) : ''}
   `;
 }
 
-function renderDetailRow(p, l) {
+function renderDetailRow(p, l, d) {
   const bullets = [l.gen_bullet_1, l.gen_bullet_2, l.gen_bullet_3, l.gen_bullet_4, l.gen_bullet_5].filter(Boolean);
   const liveBullets = [l.live_bullet_1, l.live_bullet_2, l.live_bullet_3, l.live_bullet_4, l.live_bullet_5].filter(Boolean);
   const keywords = (l.gen_keywords || '').split(/[\s,]+/).filter(Boolean);
   const slots = ['MAIN','PT01','PT02','PT03','PT04','PT05','PT06'];
   const imgBySlot = {};
   for (const i of (state.images[p.tlaps_sku] || [])) imgBySlot[i.slot] = i;
+  const dash = d || {};
+  const fmt$ = v => v != null ? '$' + Number(v).toFixed(2) : '<span class="muted">—</span>';
+  const fmtPct = v => v != null ? Number(v).toFixed(1) + '%' : '<span class="muted">—</span>';
 
   return `
     <tr class="detail-row">
-      <td colspan="10">
+      <td colspan="12">
         <div class="detail-grid">
+          <div class="detail-block">
+            <h4>Product / Cost</h4>
+            <p><strong>Amazon ASIN:</strong> ${p.asin ? `<a class="asin-link" href="https://www.amazon.com/dp/${p.asin}" target="_blank" rel="noopener">${escapeHTML(p.asin)}</a>` : '<span class="muted">—</span>'}</p>
+            <p><strong>UPC:</strong> ${p.upc ? '<code>'+escapeHTML(p.upc)+'</code>' : '<span class="muted">—</span>'}</p>
+            <p><strong>Vendor code:</strong> ${escapeHTML(p.vendor_code || '—')} <span class="muted" style="font-size:11px">${p.vendor_code === 'I3ENT' ? '(new listing)' : (p.vendor_code === 'I3ENU' ? '(dropship clone)' : '')}</span></p>
+            <p><strong>Brand:</strong> ${escapeHTML(p.brand || '—')}</p>
+            <p><strong>MPN:</strong> ${escapeHTML(p.mpn || '—')}</p>
+            <p style="margin-top:10px"><strong>MAP price:</strong> ${fmt$(p.map_price)}</p>
+            <p><strong>col_e (DHG cost):</strong> ${fmt$(p.col_e)}</p>
+            <p><strong>Net to I3:</strong> ${fmt$(p.net_to_i3 ?? dash.amz_selling_price)}</p>
+            <p><strong>Margin:</strong> ${fmtPct(dash.margin_pct)}</p>
+            ${dash.verdict ? `<p><strong>Verdict:</strong> <span class="pill ${dash.verdict==='COMPETITIVE'?'live':'draft'}">${escapeHTML(dash.verdict)}</span></p>` : ''}
+            ${(!p.upc && !p.vendor_code) ? '<p class="muted" style="margin-top:8px">⚠ Legacy DHG-original entry — predates TLAPS launch numbering.</p>' : ''}
+          </div>
           <div class="detail-block">
             <h4>Generated Listing Content</h4>
             <p><strong>Title:</strong> ${l.gen_title ? escapeHTML(l.gen_title) : '<span class="muted">not generated</span>'}</p>
@@ -338,7 +368,7 @@ function renderDetailRow(p, l) {
             ${l.live_review_count != null ? `<p><strong>Reviews:</strong> ${l.live_review_count} (${l.live_avg_rating || '—'}★)</p>` : ''}
           </div>
           <div class="detail-block">
-            <h4>Keywords (${keywords.length})</h4>
+            <h4>Keywords (${keywords.length} backend${dash.keyword_count ? ` · ${dash.keyword_count} researched` : ''})</h4>
             <div>${keywords.slice(0, 60).map(k => `<span class="keyword-pill">${escapeHTML(k)}</span>`).join('')}</div>
             ${keywords.length > 60 ? `<p class="muted" style="margin-top:8px">+${keywords.length-60} more</p>` : ''}
           </div>

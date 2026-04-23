@@ -3,10 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TLAPS Catalog Dashboard</title>
+<title>TLAPS Operations Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode/dist/JsBarcode.all.min.js"></script>
 <style>
   :root {
     --green: #1b3a1e;
@@ -17,6 +19,9 @@
     --border: #d9d5c7;
     --red: #8b2424;
     --gray-text: #6c6c6c;
+    --blue: #2d4f7a;
+    --purple: #5a3a7a;
+    --amber: #a06a1a;
   }
   * { box-sizing: border-box; }
   body {
@@ -38,6 +43,7 @@
     padding: 12px 32px;
     display: flex;
     gap: 12px;
+    flex-wrap: wrap;
   }
   nav button {
     background: none;
@@ -76,7 +82,7 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   }
   thead { background: var(--green); color: var(--cream); }
-  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
   th { font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
   tbody tr { cursor: pointer; transition: background 0.1s; }
   tbody tr:hover { background: #f5f1e8; }
@@ -95,6 +101,27 @@
   .pill.nis { background: #e5e5e5; color: var(--gray-text); }
   .pill.yes { background: var(--green); color: var(--cream); }
   .pill.no  { background: #f0e0e0; color: var(--red); }
+
+  .pill.s-received   { background: #d4dff0; color: var(--blue); }
+  .pill.s-po_sent    { background: #e2d4f0; color: var(--purple); }
+  .pill.s-sent       { background: #e2d4f0; color: var(--purple); }
+  .pill.s-confirmed  { background: #c7d6e8; color: var(--blue); }
+  .pill.s-picked_up  { background: #c7d6e8; color: var(--blue); }
+  .pill.s-fulfilled  { background: #d4e6d4; color: var(--green); }
+  .pill.s-shipped    { background: #d4e6d4; color: var(--green); }
+  .pill.s-invoiced   { background: #f0e0c0; color: var(--amber); }
+  .pill.s-paid       { background: #e0e0e0; color: var(--gray-text); }
+  .pill.s-overdue    { background: #f0d0d0; color: var(--red); }
+  .pill.s-pending    { background: #fff3d4; color: #7a5d1a; }
+  .pill.s-due        { background: #f0e0c0; color: var(--amber); }
+  .pill.s-draft      { background: #fff3d4; color: #7a5d1a; }
+  .pill.s-cancelled  { background: #e5e5e5; color: var(--gray-text); }
+  .pill.s-processed  { background: #d4e6d4; color: var(--green); }
+  .pill.s-error      { background: #f0d0d0; color: var(--red); }
+
+  .pill.t-dropship { background: #d4e6d4; color: var(--green); }
+  .pill.t-stocking { background: #d4dff0; color: var(--blue); }
+
   .detail-row td { background: var(--cream); padding: 20px; border-top: 2px solid var(--gold); }
   .detail-grid {
     display: grid;
@@ -155,18 +182,129 @@
   mark { background: #fff3d4; padding: 0 2px; }
   a.asin-link { color: var(--green); text-decoration: none; border-bottom: 1px dotted var(--green); }
   a.asin-link:hover { color: var(--gold); border-color: var(--gold); }
+
+  .upload-zone {
+    border: 2px dashed var(--gold);
+    border-radius: 8px;
+    background: #fff;
+    padding: 24px;
+    text-align: center;
+    color: var(--gray-text);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .upload-zone.dragover { background: #f5f1e8; border-color: var(--green); color: var(--green); }
+  .upload-zone strong { display: block; color: var(--text); font-size: 16px; margin-bottom: 6px; }
+  .upload-zone .sub { font-size: 12px; }
+  .upload-zone input { display: none; }
+  .upload-result {
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+  .upload-result.ok { background: #d4e6d4; color: var(--green); border: 1px solid var(--green); }
+  .upload-result.warn { background: #fff3d4; color: #7a5d1a; border: 1px solid var(--gold); }
+  .upload-result.err { background: #f0d0d0; color: var(--red); border: 1px solid var(--red); }
+
+  .btn {
+    display: inline-block;
+    padding: 8px 14px;
+    border: 1px solid var(--green);
+    background: var(--green);
+    color: var(--cream);
+    font-family: inherit;
+    font-size: 13px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .btn:hover { background: var(--green-2); }
+  .btn.secondary { background: #fff; color: var(--green); }
+  .btn.secondary:hover { background: var(--cream); }
+  .btn.warn { background: var(--gold); border-color: var(--gold); }
+  .btn.warn:hover { background: #a08550; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .card .label {
+    font-size: 11px;
+    color: var(--gray-text);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+  .card .value {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    color: var(--green);
+  }
+  .card.red .value { color: var(--red); }
+  .card.amber .value { color: var(--amber); }
+
+  .section { margin-bottom: 32px; }
+  .section h2 {
+    font-family: 'Playfair Display', serif;
+    color: var(--green);
+    font-size: 20px;
+    margin: 0 0 12px;
+    border-bottom: 1px solid var(--gold);
+    padding-bottom: 6px;
+  }
+  .actions-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+  }
+  code { font-family: 'Menlo', monospace; font-size: 12px; background: #f0ece0; padding: 1px 4px; border-radius: 2px; }
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  .modal {
+    background: #fff;
+    border-radius: 8px;
+    max-width: 800px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 24px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  }
+  .modal h3 { margin: 0 0 12px; font-family: 'Playfair Display', serif; color: var(--green); }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .agg-table { font-size: 13px; }
+  .agg-table th { background: #f5f1e8; color: var(--green); }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>TLAPS Catalog Dashboard</h1>
-  <div class="tag">Commercial Grade. Consumer Priced.</div>
+  <h1>TLAPS Operations Dashboard</h1>
+  <div class="tag">I3 Enterprise × DHG · Vendor Central operations hub</div>
 </header>
 
 <nav>
   <button class="active" data-view="grid">Products</button>
   <button data-view="keyword">Keyword Search</button>
+  <button data-view="orders">Orders</button>
+  <button data-view="dhg_pos">DHG Purchase Orders</button>
+  <button data-view="accounting">Accounting</button>
 </nav>
 
 <main id="app">
@@ -184,16 +322,26 @@ const app = document.getElementById('app');
 const state = {
   view: 'grid',
   products: [],
+  productsBySku: {},
   dashboard: {},
   listings: {},
   images: {},
   filters: { search: '', category: '', status: '', cost_confirmed: '', include_legacy: false },
   expandedSku: null,
+  orders: [],
+  dhgPos: [],
+  dhgPoLines: [],
+  accounting: [],
+  acctSummary: null,
+  ordersFilter: { type: '', status: '', dateFrom: '', dateTo: '', search: '' },
+  expandedOrderId: null,
+  expandedDhgPoId: null,
+  uploadResult: null,
+  loaded: { ops: false }
 };
 
-async function loadData() {
-  // Fetch live + DHG-legacy rows (status=draft + vendor_code=DHG-LEGACY).
-  // Legacy rows are hidden by default but selectable via the "Include legacy" toggle.
+// ====== Catalog data load (existing dashboard) ======
+async function loadCatalog() {
   const [pLive, pLegacy, dRes, lRes, iRes] = await Promise.all([
     sb.from('products').select('*').eq('status', 'live').order('category'),
     sb.from('products').select('*').eq('vendor_code', 'DHG-LEGACY'),
@@ -208,6 +356,7 @@ async function loadData() {
     if (seen.has(p.tlaps_sku)) continue;
     seen.add(p.tlaps_sku);
     state.products.push(p);
+    state.productsBySku[p.tlaps_sku] = p;
   }
   state.dashboard = {};
   for (const d of (dRes.data || [])) state.dashboard[d.tlaps_sku] = d;
@@ -219,20 +368,57 @@ async function loadData() {
   }
 }
 
+// ====== Operations data load (orders, DHG POs, accounting) ======
+async function loadOps() {
+  const safe = async (fn) => { try { return await fn(); } catch (e) { console.warn(e); return { data: [], error: e }; } };
+
+  const [oRes, hRes, lRes, aRes, sRes] = await Promise.all([
+    safe(() => sb.from('order_dashboard').select('*').order('order_date', { ascending: false }).limit(2000)),
+    safe(() => sb.from('dhg_po_dashboard').select('*').order('po_date', { ascending: false }).limit(500)),
+    safe(() => sb.from('dhg_po_lines').select('*').order('id', { ascending: false }).limit(2000)),
+    safe(() => sb.from('accounting').select('*').order('entry_date', { ascending: false }).limit(1000)),
+    safe(() => sb.from('accounting_summary').select('*').single()),
+  ]);
+
+  if (oRes.error) {
+    const fb = await safe(() => sb.from('orders').select('*').limit(2000));
+    state.orders = fb.data || [];
+  } else {
+    state.orders = oRes.data || [];
+  }
+  state.dhgPos      = hRes.data || [];
+  state.dhgPoLines  = lRes.data || [];
+  state.accounting  = aRes.data || [];
+  state.acctSummary = sRes.data || null;
+  state.loaded.ops = true;
+}
+
+// ====== Helpers ======
 function escapeHTML(s) {
   if (s == null) return '';
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
 }
-
 function yesNoPill(v) {
   return v ? '<span class="pill yes">Yes</span>' : '<span class="pill no">No</span>';
 }
-
 function statusPill(s) {
-  const cls = s === 'live' ? 'live' : (s === 'draft' ? 'draft' : 'nis');
-  return `<span class="pill ${cls}">${escapeHTML(s || 'n/a')}</span>`;
+  if (!s) return '<span class="pill nis">n/a</span>';
+  const cls = ['live','draft','nis'].includes(s) ? s : ('s-' + s);
+  return `<span class="pill ${cls}">${escapeHTML(s)}</span>`;
+}
+function typePill(t) {
+  if (!t) return '<span class="pill nis">—</span>';
+  return `<span class="pill t-${t}">${escapeHTML(t)}</span>`;
+}
+function fmt$(v) { return v != null ? '$' + Number(v).toFixed(2) : '—'; }
+function fmtDate(v) {
+  if (!v) return '—';
+  const d = new Date(v);
+  if (isNaN(d)) return escapeHTML(v);
+  return d.toISOString().slice(0, 10);
 }
 
+// ====== Products tab (existing) ======
 function renderGridView() {
   const categories = [...new Set(state.products.map(p => p.category).filter(Boolean))].sort();
   const statuses   = [...new Set(state.products.map(p => p.status).filter(Boolean))].sort();
@@ -278,18 +464,9 @@ function renderGridView() {
     <table>
       <thead>
         <tr>
-          <th>Amazon ASIN</th>
-          <th>TLAPS SKU</th>
-          <th>DHG SKU</th>
-          <th>UPC</th>
-          <th>Category</th>
-          <th>Status</th>
-          <th>Cost ✓</th>
-          <th>Images</th>
-          <th>A+</th>
-          <th>MAP</th>
-          <th>Margin</th>
-          <th>Score</th>
+          <th>Amazon ASIN</th><th>TLAPS SKU</th><th>DHG SKU</th><th>UPC</th>
+          <th>Category</th><th>Status</th><th>Cost ✓</th><th>Images</th>
+          <th>A+</th><th>MAP</th><th>Margin</th><th>Score</th>
         </tr>
       </thead>
       <tbody>
@@ -319,7 +496,6 @@ function renderRow(p) {
   const uploadedImgs = (state.images[p.tlaps_sku] || []).filter(i => i.status === 'uploaded').length;
   const imageLabel = uploadedImgs > 0 ? `${uploadedImgs}/7 ✓` : 'None';
   const asinLink = p.asin ? `<a class="asin-link" href="https://www.amazon.com/dp/${p.asin}" target="_blank" rel="noopener">${p.asin}</a>` : '—';
-  // Legacy/DHG-original rows have no UPC and no vendor_code (e.g., PP9PR with B0915RDQ7G)
   const isLegacy = !p.upc && !p.vendor_code;
   const legacyBadge = isLegacy ? ' <span class="pill nis" title="DHG original — pre-TLAPS launch entry">DHG orig</span>' : '';
   const margin = d.margin_pct != null ? Number(d.margin_pct).toFixed(1) + '%' : '—';
@@ -350,7 +526,6 @@ function renderDetailRow(p, l, d) {
   const imgBySlot = {};
   for (const i of (state.images[p.tlaps_sku] || [])) imgBySlot[i.slot] = i;
   const dash = d || {};
-  const fmt$ = v => v != null ? '$' + Number(v).toFixed(2) : '<span class="muted">—</span>';
   const fmtPct = v => v != null ? Number(v).toFixed(1) + '%' : '<span class="muted">—</span>';
 
   return `
@@ -409,6 +584,7 @@ function renderDetailRow(p, l, d) {
   `;
 }
 
+// ====== Keyword Search tab (existing) ======
 function renderKeywordSearch() {
   app.innerHTML = `
     <div class="filter-bar">
@@ -417,7 +593,6 @@ function renderKeywordSearch() {
     </div>
     <div id="kwresults"></div>
   `;
-
   const input = document.getElementById('kwsearch');
   const results = document.getElementById('kwresults');
   const stats = document.getElementById('kwstats');
@@ -435,13 +610,9 @@ function renderKeywordSearch() {
       const locs = [];
       const fields = {
         title: l.gen_title,
-        bullet_1: l.gen_bullet_1,
-        bullet_2: l.gen_bullet_2,
-        bullet_3: l.gen_bullet_3,
-        bullet_4: l.gen_bullet_4,
-        bullet_5: l.gen_bullet_5,
-        description: l.gen_description,
-        backend: l.gen_keywords,
+        bullet_1: l.gen_bullet_1, bullet_2: l.gen_bullet_2, bullet_3: l.gen_bullet_3,
+        bullet_4: l.gen_bullet_4, bullet_5: l.gen_bullet_5,
+        description: l.gen_description, backend: l.gen_keywords,
       };
       for (const [loc, text] of Object.entries(fields)) {
         if (text && text.toLowerCase().includes(q)) locs.push({ loc, text });
@@ -464,17 +635,820 @@ function renderKeywordSearch() {
   };
 }
 
+// ====== ORDERS tab — Excel import + table + stocking aggregation ======
+function renderOrdersView() {
+  if (!state.loaded.ops) {
+    app.innerHTML = `<div class="loading">Loading orders…</div>`;
+    loadOps().then(() => renderOrdersView()).catch(e => {
+      app.innerHTML = `<div class="loading" style="color:var(--red)">Failed to load orders: ${escapeHTML(e.message || String(e))}</div>`;
+    });
+    return;
+  }
+
+  const f = state.ordersFilter;
+  const filtered = state.orders.filter(o => {
+    if (f.type   && o.order_type !== f.type) return false;
+    if (f.status && o.status     !== f.status) return false;
+    if (f.dateFrom && o.order_date && o.order_date < f.dateFrom) return false;
+    if (f.dateTo   && o.order_date && o.order_date > f.dateTo)   return false;
+    if (f.search) {
+      const q = f.search.toLowerCase();
+      const hay = [o.amazon_order_id, o.amazon_po_code, o.tlaps_sku, o.dhg_sku, o.ship_to_name, o.ship_to_fc_code, o.tracking_number]
+                    .filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const stats = {
+    total: state.orders.length,
+    dropship: state.orders.filter(o => o.order_type === 'dropship').length,
+    stocking: state.orders.filter(o => o.order_type === 'stocking').length,
+    open: state.orders.filter(o => o.status && !['paid','cancelled','fulfilled'].includes(o.status)).length,
+    shown: filtered.length,
+  };
+
+  app.innerHTML = `
+    <div class="section">
+      <h2>Import ERP Order File</h2>
+      <p style="color:var(--gray-text);font-size:13px;margin:0 0 10px">
+        Upload a ConnectedBusiness export (.xlsx). The dashboard auto-detects file type by the
+        <code>source</code> column: <strong>Amazon Drop ship</strong> or <strong>Amazon Stocking</strong>.
+        For stocking POs, only rows with <code>item name</code> starting with <code>TLAPS-</code> are kept.
+      </p>
+      <div class="upload-zone" id="upZone">
+        <strong>Drag &amp; drop ERP xlsx here</strong>
+        <div class="sub">or <a id="upPick" style="color:var(--green);text-decoration:underline;cursor:pointer">click to choose a file</a></div>
+        <input type="file" id="upInput" accept=".xlsx,.xls">
+      </div>
+      ${renderUploadResult()}
+    </div>
+
+    <div class="section">
+      <h2>Orders (${stats.shown} of ${stats.total} · ${stats.dropship} dropship · ${stats.stocking} stocking · ${stats.open} open)</h2>
+      <div class="filter-bar">
+        <input type="search" id="oSearch" placeholder="Search PO, SKU, FC, tracking…" value="${escapeHTML(f.search)}">
+        <select id="oType">
+          <option value="">All types</option>
+          <option value="dropship" ${f.type==='dropship'?'selected':''}>Dropship</option>
+          <option value="stocking" ${f.type==='stocking'?'selected':''}>Stocking</option>
+        </select>
+        <select id="oStatus">
+          <option value="">All statuses</option>
+          ${['received','po_sent','confirmed','picked_up','fulfilled','shipped','invoiced','paid','cancelled']
+              .map(s => `<option value="${s}" ${f.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <input type="date" id="oFrom" value="${f.dateFrom}">
+        <input type="date" id="oTo" value="${f.dateTo}">
+        <button class="btn warn" id="aggBtn" ${stats.stocking ? '' : 'disabled'}>Generate DHG PO from stocking lines…</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th><th>Type</th><th>Amazon PO</th><th>TLAPS SKU</th><th>DHG SKU</th>
+            <th>Qty</th><th>Ship-to</th><th>Status</th><th>Label</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered.length ? filtered.map(o => renderOrderRow(o)).join('') : '<tr><td colspan="9" class="loading">No orders match the filter. Upload an ERP file above.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  const zone = document.getElementById('upZone');
+  const input = document.getElementById('upInput');
+  const pick = document.getElementById('upPick');
+  pick.onclick = () => input.click();
+  zone.onclick = (e) => { if (e.target === zone) input.click(); };
+  input.onchange = e => { if (e.target.files[0]) handleErpFile(e.target.files[0]); };
+  zone.ondragover = e => { e.preventDefault(); zone.classList.add('dragover'); };
+  zone.ondragleave = () => zone.classList.remove('dragover');
+  zone.ondrop = e => {
+    e.preventDefault(); zone.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) handleErpFile(e.dataTransfer.files[0]);
+  };
+
+  document.getElementById('oSearch').oninput = e => { state.ordersFilter.search = e.target.value; renderOrdersView(); document.getElementById('oSearch').focus(); };
+  document.getElementById('oType').onchange   = e => { state.ordersFilter.type = e.target.value; renderOrdersView(); };
+  document.getElementById('oStatus').onchange = e => { state.ordersFilter.status = e.target.value; renderOrdersView(); };
+  document.getElementById('oFrom').onchange   = e => { state.ordersFilter.dateFrom = e.target.value; renderOrdersView(); };
+  document.getElementById('oTo').onchange     = e => { state.ordersFilter.dateTo = e.target.value; renderOrdersView(); };
+  document.getElementById('aggBtn').onclick   = () => openAggregateModal();
+
+  document.querySelectorAll('tbody tr[data-oid]').forEach(tr => {
+    tr.onclick = () => {
+      state.expandedOrderId = state.expandedOrderId === tr.dataset.oid ? null : tr.dataset.oid;
+      renderOrdersView();
+    };
+  });
+  document.querySelectorAll('select[data-oid-status]').forEach(sel => {
+    sel.onchange = (e) => { e.stopPropagation(); updateOrderStatus(sel.dataset.oidStatus, sel.value); };
+    sel.onclick = e => e.stopPropagation();
+  });
+}
+
+function renderUploadResult() {
+  if (!state.uploadResult) return '';
+  const r = state.uploadResult;
+  const cls = r.kind || 'ok';
+  return `<div class="upload-result ${cls}">${r.html}</div>`;
+}
+
+function renderOrderRow(o) {
+  const oid = o.amazon_order_id || o.order_id;
+  const expanded = state.expandedOrderId === oid;
+  const ship = o.ship_to_fc_code || [o.ship_to_name, o.ship_to_city, o.ship_to_state].filter(Boolean).join(', ') || '—';
+  return `
+    <tr data-oid="${escapeHTML(oid)}" class="${expanded?'expanded':''}">
+      <td>${fmtDate(o.order_date)}</td>
+      <td>${typePill(o.order_type)}</td>
+      <td><code>${escapeHTML(o.amazon_po_code || oid || '—')}</code></td>
+      <td>${escapeHTML(o.tlaps_sku || '—')}</td>
+      <td>${escapeHTML(o.dhg_sku || '—')}</td>
+      <td>${o.quantity ?? o.qty_ordered ?? '—'}</td>
+      <td>${escapeHTML(ship)}</td>
+      <td>${statusPill(o.status)}</td>
+      <td>${o.label_processed ? '<span class="pill yes">Yes</span>' : '<span class="pill nis">No</span>'}</td>
+    </tr>
+    ${expanded ? renderOrderDetail(o) : ''}
+  `;
+}
+
+function renderOrderDetail(o) {
+  const oid = o.amazon_order_id || o.order_id;
+  const statuses = ['received','po_sent','confirmed','picked_up','fulfilled','shipped','invoiced','paid','cancelled'];
+  return `
+    <tr class="detail-row">
+      <td colspan="9">
+        <div class="detail-grid">
+          <div class="detail-block">
+            <h4>Order Info</h4>
+            <p><strong>Amazon order ID:</strong> <code>${escapeHTML(oid)}</code></p>
+            <p><strong>Amazon PO code:</strong> <code>${escapeHTML(o.amazon_po_code || '—')}</code></p>
+            ${o.amazon_ref_1 ? `<p><strong>Ref #1:</strong> ${escapeHTML(o.amazon_ref_1)}</p>` : ''}
+            ${o.amazon_ref_2 ? `<p><strong>Ref #2:</strong> ${escapeHTML(o.amazon_ref_2)}</p>` : ''}
+            <p><strong>Order date:</strong> ${fmtDate(o.order_date)}</p>
+            <p><strong>Type:</strong> ${typePill(o.order_type)}</p>
+            <p><strong>Status:</strong> ${statusPill(o.status)}
+              <select data-oid-status="${escapeHTML(oid)}" style="margin-left:8px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;">
+                <option value="">— change status —</option>
+                ${statuses.map(s => `<option value="${s}">${s}</option>`).join('')}
+              </select>
+            </p>
+            <p><strong>Shipping method:</strong> ${escapeHTML(o.shipping_method || '—')}</p>
+            <p><strong>Tracking:</strong> ${escapeHTML(o.tracking_number || '—')}</p>
+          </div>
+          <div class="detail-block">
+            <h4>Ship-to</h4>
+            <p>${escapeHTML(o.ship_to_name || '—')}</p>
+            <p>${escapeHTML(o.ship_to_address || '')}</p>
+            <p>${escapeHTML(o.ship_to_city || '')} ${escapeHTML(o.ship_to_state || '')} ${escapeHTML(o.ship_to_postal || '')}</p>
+            ${o.ship_to_fc_code ? `<p><strong>FC code:</strong> <code>${escapeHTML(o.ship_to_fc_code)}</code></p>` : ''}
+          </div>
+          <div class="detail-block">
+            <h4>SKU + Pricing</h4>
+            <p><strong>TLAPS SKU:</strong> ${escapeHTML(o.tlaps_sku || '—')}</p>
+            <p><strong>DHG SKU:</strong> ${escapeHTML(o.dhg_sku || '—')}</p>
+            <p><strong>ASIN:</strong> ${escapeHTML(o.asin || '—')}</p>
+            <p><strong>Quantity:</strong> ${o.quantity ?? o.qty_ordered ?? '—'}</p>
+            <p><strong>Unit price (Amazon→I3):</strong> ${fmt$(o.unit_price)}</p>
+            <p><strong>Unit cost (DHG col_e):</strong> ${fmt$(o.unit_cost)}</p>
+            <p><strong>Line total:</strong> ${fmt$(o.line_total)}</p>
+          </div>
+          <div class="detail-block">
+            <h4>ERP / Label / DHG PO</h4>
+            <p><strong>ERP SO #:</strong> ${escapeHTML(o.erp_so_number || '—')}</p>
+            <p><strong>ERP Invoice #:</strong> ${escapeHTML(o.erp_invoice_number || '—')}</p>
+            <p><strong>Label processed:</strong> ${o.label_processed ? '<span class="pill yes">Yes</span>' : '<span class="pill nis">No</span>'}</p>
+            ${o.label_filename ? `<p><strong>Label file:</strong> <code>${escapeHTML(o.label_filename)}</code></p>` : ''}
+            <p><strong>Linked DHG PO:</strong> ${o.dhg_po_id ? `#${o.dhg_po_id}` : '—'}</p>
+          </div>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+// ====== Excel import handler ======
+async function handleErpFile(file) {
+  state.uploadResult = { kind: 'warn', html: `Reading <code>${escapeHTML(file.name)}</code>…` };
+  renderOrdersView();
+
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+    if (!rows.length) throw new Error('Empty sheet');
+
+    const header = rows[0].map(h => String(h || '').toLowerCase().trim());
+    const idx = {
+      sales_rep_order_code: header.findIndex(h => h.includes('salesreporder') || h === 'order id' || h.includes('order code')),
+      ship_to_name:         header.findIndex(h => h.includes('ship to') && !h.includes('address') && !h.includes('city') && !h.includes('state') && !h.includes('zip') && !h.includes('postal') && !h.includes('country')),
+      ship_to_address:      header.findIndex(h => h.includes('ship to address')),
+      ship_to_city:         header.findIndex(h => h.includes('ship to city')),
+      ship_to_state:        header.findIndex(h => h.includes('ship to state')),
+      ship_to_postal:       header.findIndex(h => h.includes('ship to postal') || h.includes('ship to zip')),
+      order_date:           header.findIndex(h => h.includes('order date')),
+      shipping_method:      header.findIndex(h => h.includes('shipping method') || h === 'ship method'),
+      source:               header.findIndex(h => h === 'source'),
+      item_name:            header.findIndex(h => h.includes('item name') || h.includes('itemname')),
+      quantity:             header.findIndex(h => h.includes('quantity') || h === 'qty'),
+      price:                header.findIndex(h => h === 'price' || h.includes('unit price')),
+    };
+
+    if (idx.sales_rep_order_code < 0) idx.sales_rep_order_code = 0;
+    if (idx.ship_to_name < 0)         idx.ship_to_name = 4;
+    if (idx.ship_to_address < 0)      idx.ship_to_address = 5;
+    if (idx.ship_to_city < 0)         idx.ship_to_city = 6;
+    if (idx.ship_to_state < 0)        idx.ship_to_state = 7;
+    if (idx.ship_to_postal < 0)       idx.ship_to_postal = 8;
+    if (idx.order_date < 0)           idx.order_date = 11;
+    if (idx.shipping_method < 0)      idx.shipping_method = 13;
+    if (idx.source < 0)               idx.source = 14;
+    if (idx.item_name < 0)            idx.item_name = 16;
+    if (idx.quantity < 0)             idx.quantity = 17;
+    if (idx.price < 0)                idx.price = 18;
+
+    const records = [];
+    let totalRows = 0;
+    let skipped = 0;
+    let detectedType = null;
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || !r.length) continue;
+      totalRows++;
+      const sourceVal = String(r[idx.source] || '').trim();
+      const itemName  = String(r[idx.item_name] || '').trim();
+      const orderCode = String(r[idx.sales_rep_order_code] || '').trim();
+      if (!orderCode) { skipped++; continue; }
+      let order_type = null;
+      if (/drop\s*ship/i.test(sourceVal)) order_type = 'dropship';
+      else if (/stocking/i.test(sourceVal)) order_type = 'stocking';
+      if (!order_type) { skipped++; continue; }
+      detectedType = detectedType || order_type;
+      if (order_type === 'stocking' && !/^TLAPS-/i.test(itemName)) { skipped++; continue; }
+      const tlaps_sku = itemName;
+      const dhg_sku = (state.productsBySku[tlaps_sku] || {}).dhg_sku || null;
+      const isFc = order_type === 'stocking';
+      const ship_to_name = !isFc ? String(r[idx.ship_to_name] || '').trim() : null;
+      const ship_to_fc_code = isFc ? String(r[idx.ship_to_name] || '').trim() : null;
+      const order_id = order_type === 'dropship'
+        ? orderCode
+        : `${orderCode}-${i.toString().padStart(3, '0')}-${(tlaps_sku || 'X').slice(-12)}`;
+      const orderDateRaw = r[idx.order_date];
+      let order_date = null;
+      if (orderDateRaw) {
+        const d = new Date(orderDateRaw);
+        if (!isNaN(d)) order_date = d.toISOString().slice(0, 10);
+        else order_date = String(orderDateRaw).slice(0, 10);
+      }
+      const qty = Number(r[idx.quantity]) || 0;
+      const price = Number(r[idx.price]) || null;
+      records.push({
+        order_id,
+        order_type,
+        amazon_po_code: orderCode,
+        tlaps_sku: tlaps_sku || null,
+        dhg_sku,
+        qty_ordered: qty,
+        unit_price: price,
+        item_cost: price,
+        ship_to_name,
+        ship_to_address: !isFc ? String(r[idx.ship_to_address] || '').trim() || null : null,
+        ship_to_city:    !isFc ? String(r[idx.ship_to_city]    || '').trim() || null : null,
+        ship_to_state:   String(r[idx.ship_to_state] || '').trim() || null,
+        ship_to_postal:  String(r[idx.ship_to_postal] || '').trim() || null,
+        ship_to_fc_code,
+        shipping_method: String(r[idx.shipping_method] || '').trim() || null,
+        ship_method:     String(r[idx.shipping_method] || '').trim() || null,
+        order_date,
+        order_place_date: order_date,
+        status: 'received',
+      });
+    }
+
+    if (!records.length) {
+      state.uploadResult = {
+        kind: 'err',
+        html: `Parsed ${totalRows} rows but found <strong>0 importable orders</strong>. ` +
+              `Check the <code>source</code> column (must be "Amazon Drop ship" or "Amazon Stocking") ` +
+              `and that <code>item name</code> starts with <code>TLAPS-</code> for stocking POs.`
+        };
+      renderOrdersView();
+      return;
+    }
+
+    const batchSize = 100;
+    let inserted = 0, errors = 0, errMsg = '';
+    for (let i = 0; i < records.length; i += batchSize) {
+      const batch = records.slice(i, i + batchSize);
+      const { error } = await sb.from('orders').upsert(batch, { onConflict: 'order_id' });
+      if (error) { errors += batch.length; errMsg = error.message; }
+      else inserted += batch.length;
+    }
+
+    const tlaps = records.length;
+    if (errors === 0) {
+      state.uploadResult = {
+        kind: 'ok',
+        html: `Imported <strong>${inserted}</strong> ${detectedType} order line${inserted===1?'':'s'} from <code>${escapeHTML(file.name)}</code>. ` +
+              `Found ${tlaps} TLAPS lines out of ${totalRows} total rows (${skipped} skipped — non-TLAPS or unrecognized).`
+      };
+    } else {
+      state.uploadResult = {
+        kind: 'err',
+        html: `Imported ${inserted} of ${records.length} rows. <strong>${errors} failed</strong>. Last error: <code>${escapeHTML(errMsg)}</code>`
+      };
+    }
+    await loadOps();
+    renderOrdersView();
+  } catch (e) {
+    console.error(e);
+    state.uploadResult = { kind: 'err', html: `Import failed: <code>${escapeHTML(e.message || String(e))}</code>` };
+    renderOrdersView();
+  }
+}
+
+async function updateOrderStatus(orderId, newStatus) {
+  if (!newStatus) return;
+  const { error } = await sb.from('orders').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('order_id', orderId);
+  if (error) { alert('Failed to update status: ' + error.message); return; }
+  await loadOps();
+  renderOrdersView();
+}
+
+// ====== Aggregate stocking lines → DHG PO modal ======
+function openAggregateModal() {
+  const candidates = state.orders.filter(o =>
+    o.order_type === 'stocking' &&
+    !o.dhg_po_id &&
+    !['fulfilled','shipped','invoiced','paid','cancelled'].includes(o.status || '')
+  );
+  if (!candidates.length) {
+    alert('No unfulfilled stocking lines available to aggregate.');
+    return;
+  }
+  const byDhg = {};
+  for (const o of candidates) {
+    const key = o.dhg_sku || o.tlaps_sku || 'UNKNOWN';
+    if (!byDhg[key]) {
+      const product = state.productsBySku[o.tlaps_sku] || {};
+      byDhg[key] = {
+        dhg_sku: o.dhg_sku || product.dhg_sku || '',
+        tlaps_sku: o.tlaps_sku,
+        unit_cost: product.col_e || 0,
+        qty: 0,
+        order_ids: [],
+      };
+    }
+    byDhg[key].qty += Number(o.quantity ?? o.qty_ordered ?? 0);
+    byDhg[key].order_ids.push(o.amazon_order_id || o.order_id);
+  }
+  const groups = Object.values(byDhg);
+  const totalUnits = groups.reduce((s, g) => s + g.qty, 0);
+  const totalCost  = groups.reduce((s, g) => s + g.qty * g.unit_cost, 0);
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" id="aggModal">
+      <h3>Generate DHG PO — Aggregate Stocking Lines</h3>
+      <p style="color:var(--gray-text);font-size:13px">
+        Aggregating <strong>${candidates.length}</strong> stocking line(s) by DHG SKU.
+        Edit unit costs as needed, then create the PO.
+      </p>
+      <table class="agg-table">
+        <thead><tr><th>DHG SKU</th><th>TLAPS SKU</th><th>Total Qty</th><th>Unit Cost</th><th>Line Total</th></tr></thead>
+        <tbody>
+          ${groups.map((g, i) => `
+            <tr>
+              <td><strong>${escapeHTML(g.dhg_sku || '—')}</strong></td>
+              <td>${escapeHTML(g.tlaps_sku || '—')}</td>
+              <td>${g.qty}</td>
+              <td><input type="number" step="0.01" data-i="${i}" class="agg-cost" value="${g.unit_cost}" style="width:80px;padding:4px;border:1px solid var(--border);border-radius:3px;"></td>
+              <td id="agg-lt-${i}">${fmt$(g.qty * g.unit_cost)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+        <tfoot>
+          <tr><th colspan="2">Totals</th><th>${totalUnits}</th><th></th><th id="agg-total">${fmt$(totalCost)}</th></tr>
+        </tfoot>
+      </table>
+      <div style="margin-top:12px">
+        <label style="display:block;font-size:12px;color:var(--gray-text);margin-bottom:4px">Notes (optional)</label>
+        <textarea id="aggNotes" rows="2" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;font-family:inherit;"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" id="aggCancel">Cancel</button>
+        <button class="btn" id="aggCreate">Create DHG PO</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+
+  const recalc = () => {
+    let total = 0;
+    document.querySelectorAll('.agg-cost').forEach(input => {
+      const i = Number(input.dataset.i);
+      groups[i].unit_cost = Number(input.value) || 0;
+      const lineTotal = groups[i].qty * groups[i].unit_cost;
+      document.getElementById(`agg-lt-${i}`).textContent = fmt$(lineTotal);
+      total += lineTotal;
+    });
+    document.getElementById('agg-total').textContent = fmt$(total);
+  };
+  document.querySelectorAll('.agg-cost').forEach(input => input.oninput = recalc);
+
+  document.getElementById('aggCancel').onclick = () => backdrop.remove();
+  backdrop.onclick = e => { if (e.target === backdrop) backdrop.remove(); };
+  document.getElementById('aggCreate').onclick = async () => {
+    const btn = document.getElementById('aggCreate');
+    btn.disabled = true; btn.textContent = 'Creating…';
+    try {
+      const notes = document.getElementById('aggNotes').value.trim() || null;
+      const totalUnits = groups.reduce((s, g) => s + g.qty, 0);
+      const totalCost  = groups.reduce((s, g) => s + g.qty * g.unit_cost, 0);
+      const poNumber = await nextDhgPoNumber();
+      const { data: poRows, error: poErr } = await sb.from('dhg_purchase_orders').insert({
+        po_number: poNumber,
+        po_date: new Date().toISOString().slice(0, 10),
+        order_type: 'stocking',
+        status: 'draft',
+        total_units: totalUnits,
+        total_cost: totalCost,
+        notes,
+      }).select('id').single();
+      if (poErr) throw poErr;
+      const poId = poRows.id;
+      const lineRows = groups.map(g => ({
+        dhg_po_id: poId,
+        dhg_sku: g.dhg_sku || g.tlaps_sku,
+        tlaps_sku: g.tlaps_sku,
+        quantity: g.qty,
+        unit_cost: g.unit_cost,
+      }));
+      const { error: lineErr } = await sb.from('dhg_po_lines').insert(lineRows);
+      if (lineErr) throw lineErr;
+      const orderIds = candidates.map(o => o.amazon_order_id || o.order_id);
+      const { error: linkErr } = await sb.from('orders')
+        .update({ dhg_po_id: poId, status: 'po_sent', updated_at: new Date().toISOString() })
+        .in('order_id', orderIds);
+      if (linkErr) throw linkErr;
+      await sb.from('accounting').insert({
+        entry_type: 'dhg_payable',
+        related_po: poNumber,
+        related_dhg_po_id: poId,
+        amount: totalCost,
+        description: `Stocking PO ${poNumber} — ${groups.length} SKU(s), ${totalUnits} units`,
+        entry_date: new Date().toISOString().slice(0, 10),
+        due_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+        status: 'pending',
+      });
+      backdrop.remove();
+      await loadOps();
+      state.view = 'dhg_pos';
+      setView('dhg_pos');
+    } catch (e) {
+      console.error(e);
+      alert('Failed to create DHG PO: ' + (e.message || e));
+      btn.disabled = false; btn.textContent = 'Create DHG PO';
+    }
+  };
+}
+
+async function nextDhgPoNumber() {
+  try {
+    const { data, error } = await sb.rpc('next_dhg_po_number');
+    if (!error && data) return data;
+  } catch (_) {}
+  const year = new Date().getFullYear();
+  const prefix = `I3-DHG-${year}-`;
+  const taken = (state.dhgPos || [])
+    .map(p => p.po_number)
+    .filter(n => n && n.startsWith(prefix))
+    .map(n => Number(n.slice(prefix.length)) || 0);
+  const next = (taken.length ? Math.max(...taken) : 0) + 1;
+  return `${prefix}${String(next).padStart(4, '0')}`;
+}
+
+// ====== DHG PURCHASE ORDERS tab ======
+function renderDhgPosView() {
+  if (!state.loaded.ops) {
+    app.innerHTML = `<div class="loading">Loading DHG POs…</div>`;
+    loadOps().then(() => renderDhgPosView());
+    return;
+  }
+  const linesByPo = {};
+  for (const ln of state.dhgPoLines) (linesByPo[ln.dhg_po_id] ||= []).push(ln);
+
+  app.innerHTML = `
+    <div class="section">
+      <h2>DHG Purchase Orders (${state.dhgPos.length})</h2>
+      <p style="color:var(--gray-text);font-size:13px;margin:0 0 10px">
+        POs sent to Raymond/Wendy. Use the Orders tab → "Generate DHG PO" to create a new one from stocking lines.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>PO #</th><th>Date</th><th>Type</th><th>Status</th>
+            <th>Lines</th><th>Total Units</th><th>Total Cost</th><th>Sent To</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${state.dhgPos.length ? state.dhgPos.map(p => renderDhgPoRow(p, linesByPo[p.id] || [])).join('') :
+            '<tr><td colspan="8" class="loading">No DHG POs yet. Generate one from the Orders tab.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  document.querySelectorAll('tbody tr[data-poid]').forEach(tr => {
+    tr.onclick = () => {
+      state.expandedDhgPoId = state.expandedDhgPoId === tr.dataset.poid ? null : tr.dataset.poid;
+      renderDhgPosView();
+    };
+  });
+  document.querySelectorAll('button[data-po-action]').forEach(btn => {
+    btn.onclick = (e) => { e.stopPropagation(); doPoAction(btn.dataset.poAction, Number(btn.dataset.poid)); };
+  });
+}
+
+function renderDhgPoRow(p, lines) {
+  const expanded = state.expandedDhgPoId === String(p.id);
+  return `
+    <tr data-poid="${p.id}" class="${expanded?'expanded':''}">
+      <td><strong>${escapeHTML(p.po_number)}</strong></td>
+      <td>${fmtDate(p.po_date)}</td>
+      <td>${typePill(p.order_type)}</td>
+      <td>${statusPill(p.status)}</td>
+      <td>${p.line_count ?? lines.length}</td>
+      <td>${p.calc_total_units ?? p.total_units ?? 0}</td>
+      <td>${fmt$(p.calc_total_cost ?? p.total_cost)}</td>
+      <td>${escapeHTML(p.sent_to || '—')}</td>
+    </tr>
+    ${expanded ? renderDhgPoDetail(p, lines) : ''}
+  `;
+}
+
+function renderDhgPoDetail(p, lines) {
+  const transitions = {
+    draft:      [['sent', 'Mark Sent']],
+    sent:       [['confirmed', 'Mark Confirmed']],
+    confirmed:  [['picked_up', 'Mark Picked Up']],
+    picked_up:  [['received', 'Mark Received']],
+    received:   [['invoiced', 'Mark Invoiced']],
+    invoiced:   [['paid', 'Mark Paid']],
+    paid:       [],
+    cancelled:  [],
+  };
+  const next = transitions[p.status] || [];
+  return `
+    <tr class="detail-row">
+      <td colspan="8">
+        <div class="actions-row">
+          ${next.map(([s, label]) => `<button class="btn" data-po-action="${s}" data-poid="${p.id}">${label}</button>`).join('')}
+          ${p.status !== 'cancelled' && p.status !== 'paid' ? `<button class="btn warn" data-po-action="cancelled" data-poid="${p.id}">Cancel PO</button>` : ''}
+          <button class="btn secondary" data-po-action="print" data-poid="${p.id}">Print PO</button>
+        </div>
+        <div class="detail-grid">
+          <div class="detail-block">
+            <h4>PO Header</h4>
+            <p><strong>PO #:</strong> ${escapeHTML(p.po_number)}</p>
+            <p><strong>Date:</strong> ${fmtDate(p.po_date)}</p>
+            <p><strong>Type:</strong> ${typePill(p.order_type)}</p>
+            <p><strong>Status:</strong> ${statusPill(p.status)}</p>
+            <p><strong>Sent to:</strong> ${escapeHTML(p.sent_to || '—')}</p>
+            <p><strong>Sent at:</strong> ${p.sent_at ? new Date(p.sent_at).toLocaleString() : '—'}</p>
+            <p><strong>Confirmed at:</strong> ${p.confirmed_at ? new Date(p.confirmed_at).toLocaleString() : '—'}</p>
+            <p><strong>Pickup date:</strong> ${fmtDate(p.pickup_date)}</p>
+            ${p.notes ? `<p><strong>Notes:</strong> ${escapeHTML(p.notes)}</p>` : ''}
+          </div>
+          <div class="detail-block">
+            <h4>Totals</h4>
+            <p><strong>Lines:</strong> ${p.line_count ?? lines.length}</p>
+            <p><strong>Total units:</strong> ${p.calc_total_units ?? p.total_units ?? 0}</p>
+            <p><strong>Item cost:</strong> ${fmt$(p.calc_total_cost ?? p.total_cost)}</p>
+            <p><strong>Box cost:</strong> ${fmt$(p.calc_box_cost ?? 0)}</p>
+            <p><strong>Handling cost:</strong> ${fmt$(p.calc_handling_cost ?? 0)}</p>
+            <p><strong>Landed total:</strong> <strong>${fmt$(p.landed_total ?? p.total_cost)}</strong></p>
+          </div>
+        </div>
+        <h4 style="font-family:'Playfair Display',serif;color:var(--green);margin:16px 0 8px">Line items</h4>
+        <table class="agg-table">
+          <thead><tr><th>DHG SKU</th><th>TLAPS SKU</th><th>Qty</th><th>Unit Cost</th><th>Line Total</th><th>Box</th><th>Handling</th></tr></thead>
+          <tbody>
+            ${lines.length ? lines.map(l => `
+              <tr>
+                <td><strong>${escapeHTML(l.dhg_sku)}</strong></td>
+                <td>${escapeHTML(l.tlaps_sku || '—')}</td>
+                <td>${l.quantity}</td>
+                <td>${fmt$(l.unit_cost)}</td>
+                <td>${fmt$(l.line_total)}</td>
+                <td>${fmt$(l.box_cost)}</td>
+                <td>${fmt$(l.handling_cost)}</td>
+              </tr>
+            `).join('') : '<tr><td colspan="7" class="muted">No lines</td></tr>'}
+          </tbody>
+        </table>
+      </td>
+    </tr>
+  `;
+}
+
+async function doPoAction(action, poId) {
+  if (action === 'print') { openPrintablePo(poId); return; }
+  const updates = { status: action, updated_at: new Date().toISOString() };
+  if (action === 'sent')      updates.sent_at      = new Date().toISOString();
+  if (action === 'confirmed') updates.confirmed_at = new Date().toISOString();
+  const { error } = await sb.from('dhg_purchase_orders').update(updates).eq('id', poId);
+  if (error) { alert('Failed: ' + error.message); return; }
+  if (action === 'invoiced') {
+    await sb.from('orders').update({ status: 'invoiced', updated_at: new Date().toISOString() }).eq('dhg_po_id', poId);
+  } else if (action === 'paid') {
+    await sb.from('orders').update({ status: 'paid', dhg_invoice_paid: true, updated_at: new Date().toISOString() }).eq('dhg_po_id', poId);
+    const po = state.dhgPos.find(p => p.id === poId);
+    if (po) {
+      await sb.from('accounting').insert({
+        entry_type: 'payment_out',
+        related_po: po.po_number,
+        related_dhg_po_id: poId,
+        amount: po.calc_total_cost ?? po.total_cost,
+        description: `Paid DHG PO ${po.po_number}`,
+        entry_date: new Date().toISOString().slice(0, 10),
+        paid_date:  new Date().toISOString().slice(0, 10),
+        status: 'paid',
+      });
+      await sb.from('accounting').update({ status: 'paid', paid_date: new Date().toISOString().slice(0, 10) })
+        .eq('related_dhg_po_id', poId).eq('entry_type', 'dhg_payable');
+    }
+  }
+  await loadOps();
+  renderDhgPosView();
+}
+
+function openPrintablePo(poId) {
+  const po = state.dhgPos.find(p => p.id === poId);
+  const lines = state.dhgPoLines.filter(l => l.dhg_po_id === poId);
+  if (!po) return;
+  const win = window.open('', '_blank', 'width=900,height=700');
+  win.document.write(`<!doctype html><html><head><title>${escapeHTML(po.po_number)}</title>
+    <style>
+      body { font-family: 'Outfit', system-ui, sans-serif; padding: 40px; color: #1a1a1a; }
+      h1 { color: #1b3a1e; font-family: 'Playfair Display', serif; margin: 0; }
+      .meta { color: #6c6c6c; font-size: 12px; margin-bottom: 20px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+      th { background: #1b3a1e; color: #faf8f3; padding: 8px; text-align: left; font-size: 12px; text-transform: uppercase; }
+      td { padding: 8px; border-bottom: 1px solid #d9d5c7; font-size: 13px; }
+      .totals { margin-top: 20px; text-align: right; }
+      .totals div { margin-bottom: 4px; }
+      .totals .grand { font-size: 18px; font-weight: 600; color: #1b3a1e; border-top: 2px solid #b8965a; padding-top: 6px; }
+    </style></head><body>
+    <h1>I3 Enterprise — Purchase Order</h1>
+    <div class="meta">PO #${escapeHTML(po.po_number)} · ${fmtDate(po.po_date)} · Type: ${escapeHTML(po.order_type)} · Status: ${escapeHTML(po.status)}</div>
+    <p><strong>Vendor:</strong> DHG (Verde Win Sight) · Hacienda Heights, CA<br>
+       <strong>Contact:</strong> ${escapeHTML(po.sent_to || 'Raymond Peng / Wendy Zhong')}</p>
+    <table>
+      <thead><tr><th>DHG SKU</th><th>TLAPS SKU</th><th>Qty</th><th>Unit Cost</th><th>Line Total</th></tr></thead>
+      <tbody>
+        ${lines.map(l => `<tr><td>${escapeHTML(l.dhg_sku)}</td><td>${escapeHTML(l.tlaps_sku || '')}</td><td>${l.quantity}</td><td>${fmt$(l.unit_cost)}</td><td>${fmt$(l.line_total)}</td></tr>`).join('')}
+      </tbody>
+    </table>
+    <div class="totals">
+      <div>Total units: <strong>${po.calc_total_units ?? po.total_units ?? 0}</strong></div>
+      <div>Item cost: <strong>${fmt$(po.calc_total_cost ?? po.total_cost)}</strong></div>
+      <div>Box cost: ${fmt$(po.calc_box_cost ?? 0)}</div>
+      <div>Handling: ${fmt$(po.calc_handling_cost ?? 0)}</div>
+      <div class="grand">TOTAL: ${fmt$(po.landed_total ?? po.total_cost)}</div>
+    </div>
+    ${po.notes ? `<p style="margin-top:24px"><strong>Notes:</strong> ${escapeHTML(po.notes)}</p>` : ''}
+    <p style="margin-top:40px;font-size:11px;color:#6c6c6c">Generated ${new Date().toLocaleString()} · TLAPS Operations Dashboard</p>
+    <script>window.print();<\/script>
+    </body></html>`);
+  win.document.close();
+}
+
+// ====== ACCOUNTING tab ======
+function renderAccountingView() {
+  if (!state.loaded.ops) {
+    app.innerHTML = `<div class="loading">Loading accounting…</div>`;
+    loadOps().then(() => renderAccountingView());
+    return;
+  }
+  const s = state.acctSummary || {
+    open_payables: 0, open_receivables: 0, paid_to_dhg: 0,
+    received_from_amazon: 0, net_position: 0,
+    overdue_payables: 0, overdue_receivables: 0,
+  };
+  const payables    = state.accounting.filter(a => a.entry_type === 'dhg_payable');
+  const receivables = state.accounting.filter(a => a.entry_type === 'amazon_receivable');
+  const payments    = state.accounting.filter(a => a.entry_type === 'payment_out' || a.entry_type === 'payment_in');
+
+  app.innerHTML = `
+    <div class="summary-cards">
+      <div class="card">
+        <div class="label">Open payables (to DHG)</div>
+        <div class="value">${fmt$(s.open_payables)}</div>
+      </div>
+      <div class="card">
+        <div class="label">Open receivables (from Amazon)</div>
+        <div class="value">${fmt$(s.open_receivables)}</div>
+      </div>
+      <div class="card ${s.net_position < 0 ? 'red' : ''}">
+        <div class="label">Net position</div>
+        <div class="value">${fmt$(s.net_position)}</div>
+      </div>
+      <div class="card">
+        <div class="label">Paid to DHG (lifetime)</div>
+        <div class="value">${fmt$(s.paid_to_dhg)}</div>
+      </div>
+      <div class="card">
+        <div class="label">Received from Amazon (lifetime)</div>
+        <div class="value">${fmt$(s.received_from_amazon)}</div>
+      </div>
+      ${(s.overdue_payables > 0 || s.overdue_receivables > 0) ? `
+        <div class="card amber">
+          <div class="label">Overdue (P / R)</div>
+          <div class="value" style="font-size:18px">${fmt$(s.overdue_payables)} / ${fmt$(s.overdue_receivables)}</div>
+        </div>` : ''}
+    </div>
+
+    <div class="section">
+      <h2>Owed to DHG (${payables.length})</h2>
+      ${renderAcctTable(payables, 'payable')}
+    </div>
+
+    <div class="section">
+      <h2>Owed by Amazon (${receivables.length})</h2>
+      ${renderAcctTable(receivables, 'receivable')}
+    </div>
+
+    <div class="section">
+      <h2>Payments (${payments.length})</h2>
+      ${renderAcctTable(payments, 'payment')}
+    </div>
+  `;
+
+  document.querySelectorAll('button[data-acct-action]').forEach(btn => {
+    btn.onclick = () => markAcctPaid(Number(btn.dataset.acctId));
+  });
+}
+
+function renderAcctTable(rows, kind) {
+  if (!rows.length) return '<p class="muted" style="padding:12px;background:#fff;border:1px solid var(--border);border-radius:4px">No entries.</p>';
+  return `
+    <table>
+      <thead><tr>
+        <th>Date</th><th>Type</th><th>PO/Ref</th><th>Description</th>
+        <th>Amount</th><th>Due</th><th>Paid</th><th>Status</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(a => `
+          <tr>
+            <td>${fmtDate(a.entry_date)}</td>
+            <td>${escapeHTML(a.entry_type)}</td>
+            <td>${escapeHTML(a.related_po || '—')}</td>
+            <td>${escapeHTML(a.description || '')}</td>
+            <td>${fmt$(a.amount)}</td>
+            <td>${fmtDate(a.due_date)}</td>
+            <td>${fmtDate(a.paid_date)}</td>
+            <td>${statusPill(a.status)}</td>
+            <td>${(kind !== 'payment' && a.status !== 'paid') ? `<button class="btn secondary" data-acct-action="paid" data-acct-id="${a.id}">Mark Paid</button>` : ''}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+async function markAcctPaid(id) {
+  const { error } = await sb.from('accounting')
+    .update({ status: 'paid', paid_date: new Date().toISOString().slice(0, 10), updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) { alert('Failed: ' + error.message); return; }
+  await loadOps();
+  renderAccountingView();
+}
+
+// ====== View dispatcher ======
 function setView(view) {
   state.view = view;
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.view === view));
-  if (view === 'grid') renderGridView();
-  else renderKeywordSearch();
+  if      (view === 'grid')       renderGridView();
+  else if (view === 'keyword')    renderKeywordSearch();
+  else if (view === 'orders')     renderOrdersView();
+  else if (view === 'dhg_pos')    renderDhgPosView();
+  else if (view === 'accounting') renderAccountingView();
 }
 
 document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
 
-loadData()
-  .then(() => setView('grid'))
+loadCatalog()
+  .then(() => {
+    setView('grid');
+    return loadOps();
+  })
   .catch(e => {
     console.error(e);
     app.innerHTML = `<div class="loading" style="color:var(--red)">Failed to load: ${escapeHTML(e.message || String(e))}</div>`;

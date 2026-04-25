@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode/dist/JsBarcode.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   :root {
     --green: #1b3a1e;
@@ -22,6 +23,8 @@
     --blue: #2d4f7a;
     --purple: #5a3a7a;
     --amber: #a06a1a;
+    --orange: #c46a1a;
+    --navy: #102538;
   }
   * { box-sizing: border-box; }
   body {
@@ -31,19 +34,48 @@
     background: var(--cream);
   }
   header {
-    background: var(--green);
+    background: var(--navy);
     color: var(--cream);
-    padding: 20px 32px;
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
   }
-  header h1 { font-family: 'Playfair Display', serif; font-size: 28px; margin: 0 0 4px; }
-  header .tag { color: var(--gold); font-size: 14px; }
+  header .brand h1 { font-family: 'Playfair Display', serif; font-size: 26px; margin: 0 0 2px; color: var(--cream); }
+  header .brand .tag { color: var(--gold); font-size: 13px; }
+  header .header-tools { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  header .conn-dot {
+    display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    background: #ccc; margin-right: 6px; vertical-align: middle;
+    transition: background 0.2s;
+  }
+  header .conn-dot.ok { background: #5fbf5f; box-shadow: 0 0 6px rgba(95,191,95,0.6); }
+  header .conn-dot.err { background: #cc4444; box-shadow: 0 0 6px rgba(204,68,68,0.6); }
+  header .conn-status {
+    color: var(--cream); font-size: 12px;
+    padding: 6px 10px; border-radius: 4px; background: rgba(255,255,255,0.08);
+    cursor: pointer; user-select: none;
+  }
+  header .header-btn {
+    background: rgba(255,255,255,0.08);
+    color: var(--cream);
+    border: 1px solid rgba(255,255,255,0.15);
+    padding: 6px 12px;
+    font-family: inherit;
+    font-size: 13px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  header .header-btn:hover { background: rgba(255,255,255,0.16); }
   nav {
     background: #fff;
     border-bottom: 1px solid var(--border);
-    padding: 12px 32px;
+    padding: 10px 32px;
     display: flex;
-    gap: 12px;
+    gap: 8px;
     flex-wrap: wrap;
+    align-items: center;
   }
   nav button {
     background: none;
@@ -56,6 +88,7 @@
     color: var(--text);
   }
   nav button.active { background: var(--green); color: var(--cream); border-color: var(--green); }
+  nav .nav-divider { flex: 1; }
   main { padding: 24px 32px; }
   .filter-bar {
     display: flex;
@@ -72,7 +105,7 @@
     font-size: 14px;
     background: #fff;
   }
-  .filter-bar input[type="search"] { min-width: 280px; }
+  .filter-bar input[type="search"] { min-width: 260px; }
   .stats { color: var(--gray-text); font-size: 14px; margin-left: auto; }
   table {
     width: 100%;
@@ -84,6 +117,9 @@
   thead { background: var(--green); color: var(--cream); }
   th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
   th { font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { background: var(--green-2); }
+  th.sortable .sort-arrow { font-size: 9px; margin-left: 4px; opacity: 0.7; }
   tbody tr { cursor: pointer; transition: background 0.1s; }
   tbody tr:hover { background: #f5f1e8; }
   tbody tr.expanded { background: #f5f1e8; }
@@ -103,12 +139,15 @@
   .pill.no  { background: #f0e0e0; color: var(--red); }
 
   .pill.s-received   { background: #d4dff0; color: var(--blue); }
+  .pill.s-acknowledged { background: #fff3d4; color: #7a5d1a; }
+  .pill.s-picking    { background: #ffe0c0; color: var(--orange); }
   .pill.s-po_sent    { background: #e2d4f0; color: var(--purple); }
   .pill.s-sent       { background: #e2d4f0; color: var(--purple); }
   .pill.s-confirmed  { background: #c7d6e8; color: var(--blue); }
   .pill.s-picked_up  { background: #c7d6e8; color: var(--blue); }
   .pill.s-fulfilled  { background: #d4e6d4; color: var(--green); }
   .pill.s-shipped    { background: #d4e6d4; color: var(--green); }
+  .pill.s-delivered  { background: #d4e6d4; color: var(--green); }
   .pill.s-invoiced   { background: #f0e0c0; color: var(--amber); }
   .pill.s-paid       { background: #e0e0e0; color: var(--gray-text); }
   .pill.s-overdue    { background: #f0d0d0; color: var(--red); }
@@ -121,6 +160,10 @@
 
   .pill.t-dropship { background: #d4e6d4; color: var(--green); }
   .pill.t-stocking { background: #d4dff0; color: var(--blue); }
+
+  .margin-good { color: var(--green); font-weight: 600; }
+  .margin-mid  { color: var(--amber); font-weight: 600; }
+  .margin-low  { color: var(--red); font-weight: 600; }
 
   .detail-row td { background: var(--cream); padding: 20px; border-top: 2px solid var(--gold); }
   .detail-grid {
@@ -167,7 +210,33 @@
   .img-slot.pending { background: #f5f1e8; opacity: 0.6; }
   .img-slot .slot-name { font-family: 'Playfair Display', serif; font-size: 13px; }
   .img-slot .label { font-size: 10px; text-transform: uppercase; }
-  .loading { padding: 40px; text-align: center; color: var(--gray-text); }
+
+  .loading {
+    padding: 40px;
+    text-align: center;
+    color: var(--gray-text);
+  }
+  .spinner {
+    display: inline-block;
+    width: 18px; height: 18px;
+    border: 2px solid var(--border);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .demo-banner {
+    background: #fff3d4;
+    border: 1px solid var(--gold);
+    color: #7a5d1a;
+    padding: 10px 16px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
   .kw-result {
     background: #fff;
     border: 1px solid var(--border);
@@ -222,9 +291,12 @@
   .btn:hover { background: var(--green-2); }
   .btn.secondary { background: #fff; color: var(--green); }
   .btn.secondary:hover { background: var(--cream); }
-  .btn.warn { background: var(--gold); border-color: var(--gold); }
+  .btn.warn { background: var(--gold); border-color: var(--gold); color: var(--cream); }
   .btn.warn:hover { background: #a08550; }
+  .btn.danger { background: var(--red); border-color: var(--red); color: var(--cream); }
+  .btn.danger:hover { background: #6e1c1c; }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
 
   .summary-cards {
     display: grid;
@@ -250,9 +322,16 @@
     font-family: 'Playfair Display', serif;
     font-size: 24px;
     color: var(--green);
+    line-height: 1.2;
+  }
+  .card .sub {
+    font-size: 12px;
+    color: var(--gray-text);
+    margin-top: 4px;
   }
   .card.red .value { color: var(--red); }
   .card.amber .value { color: var(--amber); }
+  .card.blue .value { color: var(--blue); }
 
   .section { margin-bottom: 32px; }
   .section h2 {
@@ -270,46 +349,190 @@
     margin: 12px 0;
   }
   code { font-family: 'Menlo', monospace; font-size: 12px; background: #f0ece0; padding: 1px 4px; border-radius: 2px; }
+
   .modal-backdrop {
     position: fixed; inset: 0;
     background: rgba(0,0,0,0.45);
     display: flex; align-items: center; justify-content: center;
     z-index: 100;
+    padding: 20px;
   }
   .modal {
     background: #fff;
     border-radius: 8px;
     max-width: 800px;
-    width: 90%;
+    width: 100%;
     max-height: 90vh;
     overflow-y: auto;
     padding: 24px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.2);
   }
+  .modal.lg { max-width: 1000px; }
   .modal h3 { margin: 0 0 12px; font-family: 'Playfair Display', serif; color: var(--green); }
   .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
   .agg-table { font-size: 13px; }
   .agg-table th { background: #f5f1e8; color: var(--green); }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .form-grid .full { grid-column: span 2; }
+  .form-grid label {
+    display: block;
+    font-size: 11px;
+    color: var(--gray-text);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+  .form-grid input, .form-grid select, .form-grid textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 14px;
+    background: #fff;
+  }
+  .form-grid textarea { resize: vertical; min-height: 60px; }
+
+  .quick-actions {
+    position: relative;
+    display: inline-block;
+  }
+  .quick-actions .menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    min-width: 220px;
+    z-index: 50;
+    display: none;
+  }
+  .quick-actions.open .menu { display: block; }
+  .quick-actions .menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    padding: 10px 14px;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text);
+  }
+  .quick-actions .menu button:hover { background: var(--cream); color: var(--green); }
+  .quick-actions .menu hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+
+  .settings-panel {
+    position: fixed;
+    top: 0; right: 0;
+    width: 360px;
+    max-width: 100%;
+    height: 100vh;
+    background: #fff;
+    box-shadow: -8px 0 24px rgba(0,0,0,0.18);
+    z-index: 90;
+    transform: translateX(100%);
+    transition: transform 0.2s;
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .settings-panel.open { transform: translateX(0); }
+  .settings-panel h3 {
+    font-family: 'Playfair Display', serif;
+    color: var(--green);
+    margin: 0 0 16px;
+  }
+  .settings-panel .stat-row {
+    display: flex; justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .settings-panel .stat-row .stat-label { color: var(--gray-text); }
+  .settings-panel .close-x {
+    position: absolute; top: 16px; right: 16px;
+    background: none; border: none; font-size: 22px;
+    cursor: pointer; color: var(--gray-text);
+  }
+
+  .chart-wrap { background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin-bottom: 20px; }
+  .chart-wrap h3 { font-family: 'Playfair Display', serif; color: var(--green); font-size: 16px; margin: 0 0 12px; }
+  .chart-canvas { height: 300px; position: relative; }
+
+  /* Mobile responsive */
+  @media (max-width: 768px) {
+    header { padding: 14px 16px; }
+    header h1 { font-size: 20px; }
+    nav { padding: 8px 16px; gap: 6px; }
+    nav button { padding: 6px 10px; font-size: 12px; }
+    main { padding: 16px; }
+    .filter-bar { flex-direction: column; align-items: stretch; }
+    .filter-bar input[type="search"] { min-width: 0; }
+    .filter-bar .stats { margin-left: 0; }
+    .summary-cards { grid-template-columns: repeat(2, 1fr); }
+    .card .value { font-size: 18px; }
+    .form-grid { grid-template-columns: 1fr; }
+    .form-grid .full { grid-column: span 1; }
+    .detail-grid { grid-template-columns: 1fr; }
+    table { font-size: 12px; }
+    th, td { padding: 6px 8px; }
+    .modal { padding: 16px; }
+  }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>TLAPS Operations Dashboard</h1>
-  <div class="tag">I3 Enterprise × DHG · Vendor Central operations hub</div>
+  <div class="brand">
+    <h1>TLAPS Operations Dashboard</h1>
+    <div class="tag">I3 Enterprise · Vendor Central operations hub</div>
+  </div>
+  <div class="header-tools">
+    <div class="quick-actions" id="quickActions">
+      <button class="header-btn" id="qaToggle">Quick Actions ▾</button>
+      <div class="menu">
+        <button data-qa="import_po">Import Amazon PO</button>
+        <button data-qa="create_dhg_po">Create Supplier PO</button>
+        <button data-qa="add_product">Add Product</button>
+        <hr>
+        <button data-qa="goto_orders">View Orders</button>
+        <button data-qa="goto_dhg">View Supplier POs</button>
+        <button data-qa="goto_pl">View P&amp;L</button>
+        <button data-qa="goto_keywords">View Keywords</button>
+      </div>
+    </div>
+    <div class="conn-status" id="connStatus" title="Click to refresh all data">
+      <span class="conn-dot" id="connDot"></span><span id="connText">Connecting…</span>
+    </div>
+    <button class="header-btn" id="settingsBtn" title="Settings &amp; stats">⚙ Settings</button>
+  </div>
 </header>
 
 <nav>
   <button class="active" data-view="grid">Products</button>
   <button data-view="keyword">Keyword Search</button>
   <button data-view="orders">Orders</button>
-  <button data-view="dhg_pos">DHG Purchase Orders</button>
+  <button data-view="dhg_pos">Supplier POs</button>
   <button data-view="accounting">Accounting</button>
 </nav>
 
 <main id="app">
-  <div class="loading">Loading…</div>
+  <div class="loading"><span class="spinner"></span>Loading…</div>
 </main>
+
+<div class="settings-panel" id="settingsPanel">
+  <button class="close-x" id="settingsClose">&times;</button>
+  <h3>Settings &amp; Status</h3>
+  <div id="settingsBody"></div>
+</div>
 
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
@@ -326,52 +549,78 @@ const state = {
   dashboard: {},
   listings: {},
   images: {},
+  keywords: [],
   filters: { search: '', category: '', status: '', cost_confirmed: '', include_legacy: false },
+  productSort: { col: 'tlaps_sku', dir: 'asc' },
   expandedSku: null,
   orders: [],
   dhgPos: [],
   dhgPoLines: [],
   accounting: [],
   acctSummary: null,
-  ordersFilter: { type: '', status: '', dateFrom: '', dateTo: '', search: '' },
+  ordersFilter: { type: '', status: '', dateFrom: '', dateTo: '', fc: '', search: '' },
+  poFilter: { search: '', status: '' },
   expandedOrderId: null,
   expandedDhgPoId: null,
   uploadResult: null,
-  loaded: { ops: false }
+  kwUploadResult: null,
+  kwSearch: '',
+  loaded: { ops: false, keywords: false },
+  schemaOk: true,
+  conn: { status: 'connecting', lastRefresh: null, error: null },
+  charts: { monthlyPL: null, perSku: null },
+  fc_codes: {},
 };
 
-// ====== Catalog data load (existing dashboard) ======
+// ====== Connection / status helpers ======
+function setConn(status, error) {
+  state.conn.status = status;
+  state.conn.error = error || null;
+  const dot = document.getElementById('connDot');
+  const text = document.getElementById('connText');
+  if (!dot || !text) return;
+  dot.className = 'conn-dot ' + (status === 'ok' ? 'ok' : status === 'err' ? 'err' : '');
+  text.textContent = status === 'ok' ? 'Connected' : status === 'err' ? 'Error' : 'Connecting…';
+}
+function markRefresh() {
+  state.conn.lastRefresh = new Date();
+  setConn('ok');
+}
+
+// ====== Catalog data load ======
 async function loadCatalog() {
-  const [pLive, pLegacy, dRes, lRes, iRes] = await Promise.all([
-    sb.from('products').select('*').eq('status', 'live').order('category'),
-    sb.from('products').select('*').eq('vendor_code', 'DHG-LEGACY'),
-    sb.from('product_dashboard').select('tlaps_sku,margin_pct,keyword_count,live_image_count,verdict,amz_selling_price'),
-    sb.from('listings').select('*'),
-    sb.from('images').select('*'),
-  ]);
-  if (pLive.error) throw pLive.error;
-  const seen = new Set();
-  state.products = [];
-  for (const p of [...(pLive.data || []), ...(pLegacy.data || [])]) {
-    if (seen.has(p.tlaps_sku)) continue;
-    seen.add(p.tlaps_sku);
-    state.products.push(p);
-    state.productsBySku[p.tlaps_sku] = p;
-  }
-  state.dashboard = {};
-  for (const d of (dRes.data || [])) state.dashboard[d.tlaps_sku] = d;
-  state.listings = {};
-  for (const l of (lRes.data || [])) state.listings[l.tlaps_sku] = l;
-  state.images = {};
-  for (const i of (iRes.data || [])) {
-    (state.images[i.tlaps_sku] ||= []).push(i);
+  setConn('connecting');
+  try {
+    const [pAll, dRes, lRes, iRes] = await Promise.all([
+      sb.from('products').select('*'),
+      sb.from('product_dashboard').select('tlaps_sku,margin_pct,keyword_count,live_image_count,verdict,amz_selling_price'),
+      sb.from('listings').select('*'),
+      sb.from('images').select('*'),
+    ]);
+    if (pAll.error) throw pAll.error;
+    state.products = [];
+    state.productsBySku = {};
+    for (const p of (pAll.data || [])) {
+      if (state.productsBySku[p.tlaps_sku]) continue;
+      state.products.push(p);
+      state.productsBySku[p.tlaps_sku] = p;
+    }
+    state.dashboard = {};
+    for (const d of (dRes.data || [])) state.dashboard[d.tlaps_sku] = d;
+    state.listings = {};
+    for (const l of (lRes.data || [])) state.listings[l.tlaps_sku] = l;
+    state.images = {};
+    for (const i of (iRes.data || [])) (state.images[i.tlaps_sku] ||= []).push(i);
+    markRefresh();
+  } catch (e) {
+    setConn('err', e.message || String(e));
+    throw e;
   }
 }
 
 // ====== Operations data load (orders, DHG POs, accounting) ======
 async function loadOps() {
   const safe = async (fn) => { try { return await fn(); } catch (e) { console.warn(e); return { data: [], error: e }; } };
-
   const [oRes, hRes, lRes, aRes, sRes] = await Promise.all([
     safe(() => sb.from('order_dashboard').select('*').order('order_date', { ascending: false }).limit(2000)),
     safe(() => sb.from('dhg_po_dashboard').select('*').order('po_date', { ascending: false }).limit(500)),
@@ -379,8 +628,8 @@ async function loadOps() {
     safe(() => sb.from('accounting').select('*').order('entry_date', { ascending: false }).limit(1000)),
     safe(() => sb.from('accounting_summary').select('*').single()),
   ]);
-
   if (oRes.error) {
+    state.schemaOk = false;
     const fb = await safe(() => sb.from('orders').select('*').limit(2000));
     state.orders = fb.data || [];
   } else {
@@ -391,6 +640,22 @@ async function loadOps() {
   state.accounting  = aRes.data || [];
   state.acctSummary = sRes.data || null;
   state.loaded.ops = true;
+  markRefresh();
+}
+
+// ====== Keywords load (Supabase-backed search) ======
+async function loadKeywords() {
+  try {
+    const { data, error } = await sb.from('keywords').select('id,tlaps_sku,term,source,match_type,search_volume,relevance_score,in_title,in_bullets,in_backend,in_description,added_at').limit(20000);
+    if (error) throw error;
+    state.keywords = data || [];
+    state.loaded.keywords = true;
+    markRefresh();
+  } catch (e) {
+    console.warn('keyword load failed', e);
+    state.keywords = [];
+    state.loaded.keywords = true;
+  }
 }
 
 // ====== Helpers ======
@@ -411,37 +676,92 @@ function typePill(t) {
   return `<span class="pill t-${t}">${escapeHTML(t)}</span>`;
 }
 function fmt$(v) { return v != null ? '$' + Number(v).toFixed(2) : '—'; }
+function fmtInt(v) { return v != null ? Number(v).toLocaleString() : '—'; }
 function fmtDate(v) {
   if (!v) return '—';
   const d = new Date(v);
   if (isNaN(d)) return escapeHTML(v);
   return d.toISOString().slice(0, 10);
 }
+function marginClass(pct) {
+  if (pct == null) return '';
+  if (pct > 30) return 'margin-good';
+  if (pct >= 20) return 'margin-mid';
+  return 'margin-low';
+}
+function computeMarginPct(p) {
+  const d = state.dashboard[p.tlaps_sku] || {};
+  if (d.margin_pct != null) return Number(d.margin_pct);
+  if (p.col_e != null && p.map_price) {
+    const net = p.net_to_i3 ?? (p.map_price * 0.6084);
+    if (net > 0) return ((net - p.col_e) / net) * 100;
+  }
+  return null;
+}
+function isLegacyProduct(p) {
+  return p.vendor_code === 'DHG-LEGACY' || (!p.upc && !p.vendor_code);
+}
+function loadingHTML(msg) {
+  return `<div class="loading"><span class="spinner"></span>${escapeHTML(msg || 'Loading…')}</div>`;
+}
 
-// ====== Products tab (existing) ======
+// ====== Products tab — full CRUD ======
 function renderGridView() {
+  const liveProducts = state.products.filter(p => !isLegacyProduct(p));
   const categories = [...new Set(state.products.map(p => p.category).filter(Boolean))].sort();
   const statuses   = [...new Set(state.products.map(p => p.status).filter(Boolean))].sort();
 
+  // Active SKU count and average margin (excluding legacy)
+  const activeProducts = liveProducts.filter(p => p.status === 'live');
+  const margins = activeProducts.map(computeMarginPct).filter(m => m != null);
+  const avgMargin = margins.length ? margins.reduce((s, m) => s + m, 0) / margins.length : null;
+
   const filtered = state.products.filter(p => {
-    const l = state.listings[p.tlaps_sku] || {};
-    const isLegacy = p.vendor_code === 'DHG-LEGACY' || (!p.upc && !p.vendor_code);
-    if (isLegacy && !state.filters.include_legacy) return false;
+    if (isLegacyProduct(p) && !state.filters.include_legacy) return false;
     if (state.filters.category && p.category !== state.filters.category) return false;
     if (state.filters.status && p.status !== state.filters.status) return false;
     if (state.filters.cost_confirmed !== '' && String(p.cost_confirmed) !== state.filters.cost_confirmed) return false;
     if (state.filters.search) {
       const q = state.filters.search.toLowerCase();
-      const hay = [p.tlaps_sku, p.dhg_sku, p.asin, l.gen_title, l.gen_keywords].filter(Boolean).join(' ').toLowerCase();
+      const l = state.listings[p.tlaps_sku] || {};
+      const hay = [p.tlaps_sku, p.dhg_sku, p.asin, p.upc, l.gen_title, l.gen_keywords].filter(Boolean).join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
   });
-  const legacyCount = state.products.filter(p => p.vendor_code === 'DHG-LEGACY').length;
+
+  const sorted = sortProducts(filtered, state.productSort);
+  const legacyCount = state.products.filter(isLegacyProduct).length;
+
+  const sortIndicator = (col) => state.productSort.col === col
+    ? `<span class="sort-arrow">${state.productSort.dir === 'asc' ? '▲' : '▼'}</span>` : '';
 
   app.innerHTML = `
+    <div class="summary-cards">
+      <div class="card">
+        <div class="label">Active SKUs</div>
+        <div class="value">${activeProducts.length}</div>
+        <div class="sub">${liveProducts.length} total non-legacy · ${state.products.length} grand total</div>
+      </div>
+      <div class="card ${avgMargin == null ? '' : (avgMargin > 30 ? '' : avgMargin >= 20 ? 'amber' : 'red')}">
+        <div class="label">Average Margin (active)</div>
+        <div class="value">${avgMargin != null ? avgMargin.toFixed(1) + '%' : '—'}</div>
+        <div class="sub">${margins.length} of ${activeProducts.length} have margin data</div>
+      </div>
+      <div class="card">
+        <div class="label">Cost Confirmed</div>
+        <div class="value">${activeProducts.filter(p => p.cost_confirmed).length}/${activeProducts.length}</div>
+        <div class="sub">SKUs with verified col_e</div>
+      </div>
+      <div class="card">
+        <div class="label">A+ Submitted</div>
+        <div class="value">${activeProducts.filter(p => p.aplus_submitted).length}/${activeProducts.length}</div>
+        <div class="sub">A+ content submitted to VC</div>
+      </div>
+    </div>
+
     <div class="filter-bar">
-      <input type="search" id="search" placeholder="Search SKU, ASIN, title, keywords…" value="${escapeHTML(state.filters.search)}">
+      <input type="search" id="search" placeholder="Search SKU, ASIN, UPC, title, keywords…" value="${escapeHTML(state.filters.search)}">
       <select id="cat">
         <option value="">All categories</option>
         ${categories.map(c => `<option value="${c}" ${c===state.filters.category?'selected':''}>${c}</option>`).join('')}
@@ -457,20 +777,30 @@ function renderGridView() {
       </select>
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--gray-text);cursor:pointer;">
         <input type="checkbox" id="legacy" ${state.filters.include_legacy?'checked':''}>
-        Include DHG-legacy (${legacyCount})
+        Include legacy (${legacyCount})
       </label>
-      <div class="stats">${filtered.length} shown · ${state.products.length - legacyCount} live</div>
+      <button class="btn" id="addProductBtn">+ Add Product</button>
+      <button class="btn secondary btn-sm" id="refreshBtn">↻ Refresh</button>
+      <div class="stats">${sorted.length} shown</div>
     </div>
     <table>
       <thead>
         <tr>
-          <th>Amazon ASIN</th><th>TLAPS SKU</th><th>DHG SKU</th><th>UPC</th>
-          <th>Category</th><th>Status</th><th>Cost ✓</th><th>Images</th>
-          <th>A+</th><th>MAP</th><th>Margin</th><th>Score</th>
+          <th class="sortable" data-sort="asin">ASIN${sortIndicator('asin')}</th>
+          <th class="sortable" data-sort="tlaps_sku">TLAPS SKU${sortIndicator('tlaps_sku')}</th>
+          <th class="sortable" data-sort="dhg_sku">Supplier SKU${sortIndicator('dhg_sku')}</th>
+          <th class="sortable" data-sort="upc">UPC${sortIndicator('upc')}</th>
+          <th class="sortable" data-sort="category">Category${sortIndicator('category')}</th>
+          <th class="sortable" data-sort="status">Status${sortIndicator('status')}</th>
+          <th class="sortable" data-sort="map_price">MAP${sortIndicator('map_price')}</th>
+          <th class="sortable" data-sort="col_e">Cost (col_e)${sortIndicator('col_e')}</th>
+          <th class="sortable" data-sort="margin">Margin${sortIndicator('margin')}</th>
+          <th class="sortable" data-sort="updated_at">Updated${sortIndicator('updated_at')}</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
-        ${filtered.map(p => renderRow(p)).join('')}
+        ${sorted.length ? sorted.map(p => renderRow(p)).join('') : '<tr><td colspan="11" class="loading">No products match the filter.</td></tr>'}
       </tbody>
     </table>
   `;
@@ -480,12 +810,45 @@ function renderGridView() {
   document.getElementById('status').onchange = e => { state.filters.status = e.target.value; renderGridView(); };
   document.getElementById('cost').onchange = e => { state.filters.cost_confirmed = e.target.value; renderGridView(); };
   document.getElementById('legacy').onchange = e => { state.filters.include_legacy = e.target.checked; renderGridView(); };
+  document.getElementById('addProductBtn').onclick = () => openProductModal(null);
+  document.getElementById('refreshBtn').onclick = async () => { await loadCatalog(); renderGridView(); };
+
+  document.querySelectorAll('th.sortable').forEach(th => {
+    th.onclick = () => {
+      const col = th.dataset.sort;
+      if (state.productSort.col === col) state.productSort.dir = state.productSort.dir === 'asc' ? 'desc' : 'asc';
+      else { state.productSort.col = col; state.productSort.dir = 'asc'; }
+      renderGridView();
+    };
+  });
 
   document.querySelectorAll('tbody tr[data-sku]').forEach(tr => {
-    tr.onclick = () => {
+    tr.onclick = (e) => {
+      if (e.target.closest('button')) return;
       state.expandedSku = state.expandedSku === tr.dataset.sku ? null : tr.dataset.sku;
       renderGridView();
     };
+  });
+  document.querySelectorAll('button[data-edit-sku]').forEach(btn => {
+    btn.onclick = (e) => { e.stopPropagation(); openProductModal(btn.dataset.editSku); };
+  });
+}
+
+function sortProducts(rows, sort) {
+  const { col, dir } = sort;
+  const sign = dir === 'asc' ? 1 : -1;
+  const get = p => {
+    if (col === 'margin') return computeMarginPct(p);
+    if (col === 'updated_at') return p.updated_at || '';
+    return p[col];
+  };
+  return [...rows].sort((a, b) => {
+    const av = get(a), bv = get(b);
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * sign;
+    return String(av).localeCompare(String(bv)) * sign;
   });
 }
 
@@ -493,12 +856,13 @@ function renderRow(p) {
   const l = state.listings[p.tlaps_sku] || {};
   const d = state.dashboard[p.tlaps_sku] || {};
   const expanded = state.expandedSku === p.tlaps_sku;
-  const uploadedImgs = (state.images[p.tlaps_sku] || []).filter(i => i.status === 'uploaded').length;
-  const imageLabel = uploadedImgs > 0 ? `${uploadedImgs}/7 ✓` : 'None';
   const asinLink = p.asin ? `<a class="asin-link" href="https://www.amazon.com/dp/${p.asin}" target="_blank" rel="noopener">${p.asin}</a>` : '—';
-  const isLegacy = !p.upc && !p.vendor_code;
-  const legacyBadge = isLegacy ? ' <span class="pill nis" title="DHG original — pre-TLAPS launch entry">DHG orig</span>' : '';
-  const margin = d.margin_pct != null ? Number(d.margin_pct).toFixed(1) + '%' : '—';
+  const isLegacy = isLegacyProduct(p);
+  const legacyBadge = isLegacy ? ' <span class="pill nis" title="Legacy entry — pre-TLAPS launch">legacy</span>' : '';
+  const marginPct = computeMarginPct(p);
+  const marginCell = marginPct != null
+    ? `<span class="${marginClass(marginPct)}">${marginPct.toFixed(1)}%</span>`
+    : '—';
   return `
     <tr data-sku="${escapeHTML(p.tlaps_sku)}" class="${expanded?'expanded':''}">
       <td>${asinLink}</td>
@@ -507,12 +871,11 @@ function renderRow(p) {
       <td>${p.upc ? '<code>'+escapeHTML(p.upc)+'</code>' : '—'}</td>
       <td>${escapeHTML(p.category || '—')}</td>
       <td>${statusPill(p.status)}</td>
-      <td>${yesNoPill(p.cost_confirmed)}</td>
-      <td>${imageLabel}</td>
-      <td>${yesNoPill(p.aplus_submitted)}</td>
       <td>${p.map_price ? '$'+Number(p.map_price).toFixed(2) : '—'}</td>
-      <td>${margin}</td>
-      <td>${l.content_score != null ? l.content_score : '—'}</td>
+      <td>${p.col_e ? '$'+Number(p.col_e).toFixed(2) : '—'}</td>
+      <td>${marginCell}</td>
+      <td>${p.updated_at ? fmtDate(p.updated_at) : '—'}</td>
+      <td><button class="btn btn-sm secondary" data-edit-sku="${escapeHTML(p.tlaps_sku)}">Edit</button></td>
     </tr>
     ${expanded ? renderDetailRow(p, l, d) : ''}
   `;
@@ -527,24 +890,24 @@ function renderDetailRow(p, l, d) {
   for (const i of (state.images[p.tlaps_sku] || [])) imgBySlot[i.slot] = i;
   const dash = d || {};
   const fmtPct = v => v != null ? Number(v).toFixed(1) + '%' : '<span class="muted">—</span>';
+  const marginPct = computeMarginPct(p);
 
   return `
     <tr class="detail-row">
-      <td colspan="12">
+      <td colspan="11">
         <div class="detail-grid">
           <div class="detail-block">
             <h4>Product / Cost</h4>
-            <p><strong>Amazon ASIN:</strong> ${p.asin ? `<a class="asin-link" href="https://www.amazon.com/dp/${p.asin}" target="_blank" rel="noopener">${escapeHTML(p.asin)}</a>` : '<span class="muted">—</span>'}</p>
+            <p><strong>ASIN:</strong> ${p.asin ? `<a class="asin-link" href="https://www.amazon.com/dp/${p.asin}" target="_blank" rel="noopener">${escapeHTML(p.asin)}</a>` : '<span class="muted">—</span>'}</p>
             <p><strong>UPC:</strong> ${p.upc ? '<code>'+escapeHTML(p.upc)+'</code>' : '<span class="muted">—</span>'}</p>
             <p><strong>Vendor code:</strong> ${escapeHTML(p.vendor_code || '—')} <span class="muted" style="font-size:11px">${p.vendor_code === 'I3ENT' ? '(new listing)' : (p.vendor_code === 'I3ENU' ? '(dropship clone)' : '')}</span></p>
             <p><strong>Brand:</strong> ${escapeHTML(p.brand || '—')}</p>
             <p><strong>MPN:</strong> ${escapeHTML(p.mpn || '—')}</p>
             <p style="margin-top:10px"><strong>MAP price:</strong> ${fmt$(p.map_price)}</p>
-            <p><strong>col_e (DHG cost):</strong> ${fmt$(p.col_e)}</p>
+            <p><strong>Cost (col_e):</strong> ${fmt$(p.col_e)}</p>
             <p><strong>Net to I3:</strong> ${fmt$(p.net_to_i3 ?? dash.amz_selling_price)}</p>
-            <p><strong>Margin:</strong> ${fmtPct(dash.margin_pct)}</p>
+            <p><strong>Margin:</strong> <span class="${marginClass(marginPct)}">${fmtPct(marginPct)}</span></p>
             ${dash.verdict ? `<p><strong>Verdict:</strong> <span class="pill ${dash.verdict==='COMPETITIVE'?'live':'draft'}">${escapeHTML(dash.verdict)}</span></p>` : ''}
-            ${(!p.upc && !p.vendor_code) ? '<p class="muted" style="margin-top:8px">⚠ Legacy DHG-original entry — predates TLAPS launch numbering.</p>' : ''}
           </div>
           <div class="detail-block">
             <h4>Generated Listing Content</h4>
@@ -578,67 +941,390 @@ function renderDetailRow(p, l, d) {
             ${l.revision_number ? `<p style="margin-top:12px"><strong>Revision:</strong> ${l.revision_number}</p>` : ''}
             ${p.updated_at ? `<p class="muted" style="font-size:12px">Updated ${new Date(p.updated_at).toLocaleString()}</p>` : ''}
           </div>
+          <div class="detail-block">
+            <h4>Quick Actions</h4>
+            <button class="btn" data-edit-sku="${escapeHTML(p.tlaps_sku)}">Edit Product</button>
+          </div>
         </div>
       </td>
     </tr>
   `;
 }
 
-// ====== Keyword Search tab (existing) ======
-function renderKeywordSearch() {
-  app.innerHTML = `
-    <div class="filter-bar">
-      <input type="search" id="kwsearch" placeholder="Type a keyword to see which SKUs use it…" autofocus>
-      <div class="stats" id="kwstats"></div>
-    </div>
-    <div id="kwresults"></div>
-  `;
-  const input = document.getElementById('kwsearch');
-  const results = document.getElementById('kwresults');
-  const stats = document.getElementById('kwstats');
+// ====== Product Add/Edit Modal ======
+function openProductModal(skuOrNull) {
+  const editing = !!skuOrNull;
+  const p = editing ? (state.productsBySku[skuOrNull] || {}) : {
+    tlaps_sku: '', dhg_sku: '', asin: '', upc: '', category: '',
+    map_price: '', col_e: '', status: 'draft', vendor_code: 'I3ENT',
+    brand: 'TLAPS', mpn: '', cost_confirmed: false,
+    images_uploaded: false, aplus_submitted: false,
+  };
+  const categories = ['PLATE','FOIL_SHEET','FOIL_TRAY','STRAW','PIZZA_BOX','FOOD_TRAY','CONTAINER','GLOVE'];
+  const statuses   = ['draft','nis_pending','live','archived'];
+  const vendorCodes = ['I3ENT','I3ENU','DHG-LEGACY'];
 
-  input.oninput = () => {
-    const q = input.value.trim().toLowerCase();
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal lg">
+      <h3>${editing ? 'Edit Product' : 'Add Product'}</h3>
+      <div class="form-grid">
+        <div>
+          <label>TLAPS SKU *</label>
+          <input id="pf-tlaps_sku" value="${escapeHTML(p.tlaps_sku || '')}" ${editing ? 'readonly style="background:#f0ece0"' : ''} placeholder="TLAPS-CATEGORY-SUPPLIERSKU">
+        </div>
+        <div>
+          <label>Supplier SKU (col_a)</label>
+          <input id="pf-dhg_sku" value="${escapeHTML(p.dhg_sku || '')}" placeholder="supplier internal SKU">
+        </div>
+        <div>
+          <label>ASIN</label>
+          <input id="pf-asin" value="${escapeHTML(p.asin || '')}" placeholder="B0XXXXXXXX">
+        </div>
+        <div>
+          <label>UPC (12-digit GS1)</label>
+          <input id="pf-upc" value="${escapeHTML(p.upc || '')}" placeholder="304828796xxx">
+        </div>
+        <div>
+          <label>Category</label>
+          <select id="pf-category">
+            <option value="">— pick —</option>
+            ${categories.map(c => `<option value="${c}" ${c===p.category?'selected':''}>${c}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label>Status</label>
+          <select id="pf-status">
+            ${statuses.map(s => `<option value="${s}" ${s===p.status?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label>MAP Price ($)</label>
+          <input id="pf-map_price" type="number" step="0.01" value="${p.map_price ?? ''}">
+        </div>
+        <div>
+          <label>Cost — col_e ($)</label>
+          <input id="pf-col_e" type="number" step="0.01" value="${p.col_e ?? ''}">
+        </div>
+        <div>
+          <label>Vendor Code</label>
+          <select id="pf-vendor_code">
+            ${vendorCodes.map(v => `<option value="${v}" ${v===p.vendor_code?'selected':''}>${v}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label>Brand</label>
+          <input id="pf-brand" value="${escapeHTML(p.brand || 'TLAPS')}">
+        </div>
+        <div>
+          <label>MPN</label>
+          <input id="pf-mpn" value="${escapeHTML(p.mpn || '')}">
+        </div>
+        <div>
+          <label>Cost Confirmed?</label>
+          <select id="pf-cost_confirmed">
+            <option value="false" ${!p.cost_confirmed?'selected':''}>No</option>
+            <option value="true"  ${p.cost_confirmed?'selected':''}>Yes</option>
+          </select>
+        </div>
+        <div class="full">
+          <label>Computed (read-only)</label>
+          <div style="background:#f0ece0;padding:10px;border-radius:4px;font-size:12px;color:var(--gray-text)" id="pf-computed">—</div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        ${editing ? `<button class="btn danger" id="pf-archive">Archive</button>` : ''}
+        <button class="btn secondary" id="pf-cancel">Cancel</button>
+        <button class="btn" id="pf-save">${editing ? 'Save' : 'Create'}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+
+  const recompute = () => {
+    const map = Number(document.getElementById('pf-map_price').value) || 0;
+    const cost = Number(document.getElementById('pf-col_e').value) || 0;
+    const net = map * 0.6084;
+    const amzPrice = map * 0.78;
+    const margin = net > 0 && cost > 0 ? ((net - cost) / net * 100) : null;
+    document.getElementById('pf-computed').innerHTML = `
+      Net to I3 = $${net.toFixed(2)} (MAP × 0.6084) ·
+      Cost to Amazon = $${amzPrice.toFixed(2)} (MAP × 0.78) ·
+      Margin = ${margin != null ? `<span class="${marginClass(margin)}">${margin.toFixed(1)}%</span>` : '—'}
+    `;
+  };
+  document.getElementById('pf-map_price').oninput = recompute;
+  document.getElementById('pf-col_e').oninput = recompute;
+  recompute();
+
+  document.getElementById('pf-cancel').onclick = () => backdrop.remove();
+  backdrop.onclick = e => { if (e.target === backdrop) backdrop.remove(); };
+
+  if (editing) {
+    document.getElementById('pf-archive').onclick = async () => {
+      if (!confirm(`Archive ${p.tlaps_sku}?`)) return;
+      const { error } = await sb.from('products').update({ status: 'archived', updated_at: new Date().toISOString() }).eq('tlaps_sku', p.tlaps_sku);
+      if (error) { alert('Archive failed: ' + error.message); return; }
+      await loadCatalog();
+      backdrop.remove();
+      renderGridView();
+    };
+  }
+
+  document.getElementById('pf-save').onclick = async () => {
+    const btn = document.getElementById('pf-save');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const get = id => document.getElementById('pf-' + id).value.trim();
+      const payload = {
+        tlaps_sku: get('tlaps_sku'),
+        dhg_sku: get('dhg_sku') || null,
+        asin: get('asin') || null,
+        upc: get('upc') || null,
+        category: get('category') || null,
+        status: get('status'),
+        map_price: get('map_price') ? Number(get('map_price')) : null,
+        col_e: get('col_e') ? Number(get('col_e')) : null,
+        vendor_code: get('vendor_code'),
+        brand: get('brand') || null,
+        mpn: get('mpn') || null,
+        cost_confirmed: get('cost_confirmed') === 'true',
+        updated_at: new Date().toISOString(),
+      };
+      if (payload.map_price) {
+        payload.net_to_i3 = +(payload.map_price * 0.6084).toFixed(2);
+        payload.amz_selling_price = +(payload.map_price * 0.78).toFixed(2);
+      }
+      if (!payload.tlaps_sku) throw new Error('TLAPS SKU is required');
+      const { error } = await sb.from('products').upsert(payload, { onConflict: 'tlaps_sku' });
+      if (error) throw error;
+      await loadCatalog();
+      backdrop.remove();
+      renderGridView();
+    } catch (e) {
+      alert('Save failed: ' + (e.message || e));
+      btn.disabled = false; btn.textContent = editing ? 'Save' : 'Create';
+    }
+  };
+}
+
+// ====== Keyword Search tab — Supabase keywords + listings text ======
+function renderKeywordSearch() {
+  if (!state.loaded.keywords) {
+    app.innerHTML = loadingHTML('Loading keyword research…');
+    loadKeywords().then(() => renderKeywordSearch());
+    return;
+  }
+  const total = state.keywords.length;
+  const skuCount = new Set(state.keywords.map(k => k.tlaps_sku)).size;
+  const sourceCount = state.keywords.reduce((acc, k) => { acc[k.source || 'other'] = (acc[k.source || 'other'] || 0) + 1; return acc; }, {});
+
+  app.innerHTML = `
+    <div class="summary-cards">
+      <div class="card">
+        <div class="label">Keywords Tracked</div>
+        <div class="value">${fmtInt(total)}</div>
+        <div class="sub">across ${skuCount} SKUs</div>
+      </div>
+      <div class="card">
+        <div class="label">Helium 10 Magnet</div>
+        <div class="value">${fmtInt(sourceCount.magnet || 0)}</div>
+        <div class="sub">competitor reverse keywords</div>
+      </div>
+      <div class="card">
+        <div class="label">Helium 10 Cerebro</div>
+        <div class="value">${fmtInt(sourceCount.cerebro || 0)}</div>
+        <div class="sub">ASIN-targeted lookup</div>
+      </div>
+      <div class="card">
+        <div class="label">Manual</div>
+        <div class="value">${fmtInt(sourceCount.manual || 0)}</div>
+        <div class="sub">team-curated</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Import Keywords</h2>
+      <p style="color:var(--gray-text);font-size:13px;margin:0 0 8px">
+        Upload a Helium 10 Cerebro or Magnet CSV. Required columns: <code>Keyword Phrase</code> (or <code>term</code>) and
+        <code>Search Volume</code>. Optional: <code>tlaps_sku</code> column for auto-mapping.
+      </p>
+      <div class="upload-zone" id="kwZone">
+        <strong>Drag &amp; drop keyword CSV here</strong>
+        <div class="sub">or <a id="kwPick" style="color:var(--green);text-decoration:underline;cursor:pointer">click to choose a file</a></div>
+        <input type="file" id="kwInput" accept=".csv,.xlsx,.xls">
+      </div>
+      ${renderKwUploadResult()}
+    </div>
+
+    <div class="section">
+      <h2>Search Keywords (${fmtInt(total)} total)</h2>
+      <div class="filter-bar">
+        <input type="search" id="kwSearch" placeholder="Type 2+ characters to filter keywords…" value="${escapeHTML(state.kwSearch || '')}" autofocus>
+        <div class="stats" id="kwStats"></div>
+      </div>
+      <div id="kwResults"></div>
+    </div>
+  `;
+
+  // upload handlers
+  const zone = document.getElementById('kwZone');
+  const input = document.getElementById('kwInput');
+  document.getElementById('kwPick').onclick = () => input.click();
+  zone.onclick = e => { if (e.target === zone) input.click(); };
+  zone.ondragover = e => { e.preventDefault(); zone.classList.add('dragover'); };
+  zone.ondragleave = () => zone.classList.remove('dragover');
+  zone.ondrop = e => { e.preventDefault(); zone.classList.remove('dragover'); if (e.dataTransfer.files[0]) handleKeywordFile(e.dataTransfer.files[0]); };
+  input.onchange = e => { if (e.target.files[0]) handleKeywordFile(e.target.files[0]); };
+
+  // search
+  const searchInput = document.getElementById('kwSearch');
+  const results = document.getElementById('kwResults');
+  const stats = document.getElementById('kwStats');
+  const runSearch = () => {
+    const q = searchInput.value.trim().toLowerCase();
+    state.kwSearch = q;
     if (!q || q.length < 2) {
-      results.innerHTML = '<p class="loading">Type at least 2 characters…</p>';
+      results.innerHTML = '<p class="muted" style="padding:14px;background:#fff;border:1px solid var(--border);border-radius:4px">Type at least 2 characters to search.</p>';
       stats.textContent = '';
       return;
     }
-    const hits = [];
+    // Match keywords table
+    const kwHits = state.keywords.filter(k => (k.term || '').toLowerCase().includes(q));
+    // Group by SKU for compact display
+    const bySku = {};
+    for (const k of kwHits) {
+      if (!bySku[k.tlaps_sku]) bySku[k.tlaps_sku] = [];
+      bySku[k.tlaps_sku].push(k);
+    }
+    // Also match listings text (gen_title/bullets/desc/backend)
+    const listingHits = [];
     for (const p of state.products) {
       const l = state.listings[p.tlaps_sku] || {};
-      const locs = [];
       const fields = {
         title: l.gen_title,
         bullet_1: l.gen_bullet_1, bullet_2: l.gen_bullet_2, bullet_3: l.gen_bullet_3,
         bullet_4: l.gen_bullet_4, bullet_5: l.gen_bullet_5,
         description: l.gen_description, backend: l.gen_keywords,
       };
+      const locs = [];
       for (const [loc, text] of Object.entries(fields)) {
         if (text && text.toLowerCase().includes(q)) locs.push({ loc, text });
       }
-      if (locs.length) hits.push({ p, l, locs });
+      if (locs.length) listingHits.push({ p, l, locs });
     }
-    stats.textContent = `${hits.length} SKU${hits.length===1?'':'s'} match`;
-    results.innerHTML = hits.map(h => {
-      const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'ig');
-      return `
-        <div class="kw-result">
-          <h3>${escapeHTML(h.l.gen_title || h.p.tlaps_sku)}</h3>
-          <div class="asin">${escapeHTML(h.p.tlaps_sku)} · ${escapeHTML(h.p.asin || '')} · ${escapeHTML(h.p.category || '')}</div>
-          <div class="kw-hits">
-            ${h.locs.map(({ loc, text }) => `<div><span class="loc">${loc}:</span>${escapeHTML(text.slice(0, 200)).replace(re, '<mark>$1</mark>')}${text.length>200?'…':''}</div>`).join('')}
+    stats.textContent = `${kwHits.length} keyword hit${kwHits.length===1?'':'s'} · ${listingHits.length} listing match${listingHits.length===1?'':'es'}`;
+
+    const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'ig');
+    const skuRows = Object.entries(bySku)
+      .map(([sku, hits]) => {
+        const product = state.productsBySku[sku] || {};
+        const listing = state.listings[sku] || {};
+        const top = hits.slice().sort((a, b) => (b.search_volume || 0) - (a.search_volume || 0)).slice(0, 8);
+        return `
+          <tr>
+            <td><strong>${escapeHTML(sku)}</strong><br><span class="muted" style="font-size:11px">${escapeHTML(product.asin || '')}</span></td>
+            <td>${escapeHTML(listing.gen_title ? listing.gen_title.slice(0, 60) : '—')}</td>
+            <td>${hits.length}</td>
+            <td>${fmtInt(Math.max(...hits.map(h => h.search_volume || 0)))}</td>
+            <td>
+              ${top.map(h => `<span class="keyword-pill" title="${h.search_volume || 0} searches · ${h.source || ''}">${escapeHTML(h.term)}${h.search_volume ? ` <span class="muted" style="font-size:10px">(${fmtInt(h.search_volume)})</span>` : ''}</span>`).join('')}
+              ${hits.length > 8 ? `<span class="muted" style="font-size:11px">+${hits.length-8} more</span>` : ''}
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+    results.innerHTML = `
+      ${kwHits.length ? `
+        <h3 style="font-family:'Playfair Display',serif;color:var(--green);font-size:16px;margin:8px 0">Keyword Research Hits (${fmtInt(kwHits.length)} keywords across ${Object.keys(bySku).length} SKUs)</h3>
+        <table>
+          <thead><tr><th>SKU / ASIN</th><th>Listing Title</th><th>Hits</th><th>Top SV</th><th>Top Keywords (with search volume)</th></tr></thead>
+          <tbody>${skuRows}</tbody>
+        </table>
+      ` : ''}
+      ${listingHits.length ? `
+        <h3 style="font-family:'Playfair Display',serif;color:var(--green);font-size:16px;margin:24px 0 8px">Listing Content Matches</h3>
+        ${listingHits.map(h => `
+          <div class="kw-result">
+            <h3>${escapeHTML(h.l.gen_title || h.p.tlaps_sku)}</h3>
+            <div class="asin">${escapeHTML(h.p.tlaps_sku)} · ${escapeHTML(h.p.asin || '')} · ${escapeHTML(h.p.category || '')}</div>
+            <div class="kw-hits">
+              ${h.locs.map(({loc, text}) => `<div><span class="loc">${loc}:</span>${escapeHTML(text.slice(0, 200)).replace(re, '<mark>$1</mark>')}${text.length>200?'…':''}</div>`).join('')}
+            </div>
           </div>
-        </div>
-      `;
-    }).join('');
+        `).join('')}
+      ` : ''}
+      ${(!kwHits.length && !listingHits.length) ? '<p class="muted" style="padding:14px;background:#fff;border:1px solid var(--border);border-radius:4px">No matches.</p>' : ''}
+    `;
   };
+  searchInput.oninput = runSearch;
+  if (state.kwSearch) runSearch();
 }
 
-// ====== ORDERS tab — Excel import + table + stocking aggregation ======
+function renderKwUploadResult() {
+  if (!state.kwUploadResult) return '';
+  const r = state.kwUploadResult;
+  return `<div class="upload-result ${r.kind || 'ok'}">${r.html}</div>`;
+}
+
+async function handleKeywordFile(file) {
+  state.kwUploadResult = { kind: 'warn', html: `<span class="spinner"></span>Reading <code>${escapeHTML(file.name)}</code>…` };
+  renderKeywordSearch();
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    if (!rows.length) throw new Error('Empty file');
+
+    const records = [];
+    let skipped = 0;
+    for (const r of rows) {
+      const lc = {};
+      for (const k of Object.keys(r)) lc[k.toLowerCase().trim()] = r[k];
+      const term = (lc['keyword phrase'] || lc['term'] || lc['keyword'] || '').toString().trim();
+      if (!term) { skipped++; continue; }
+      const sv = Number(lc['search volume'] || lc['search_volume'] || lc['sv'] || 0) || null;
+      const tlaps = (lc['tlaps_sku'] || lc['sku'] || '').toString().trim() || null;
+      if (!tlaps) { skipped++; continue; }
+      records.push({
+        tlaps_sku: tlaps,
+        term,
+        source: 'cerebro',
+        search_volume: sv,
+        in_title: false, in_bullets: false, in_backend: false, in_description: false,
+      });
+    }
+    if (!records.length) {
+      state.kwUploadResult = { kind: 'err', html: `Parsed ${rows.length} rows but found 0 with required <code>tlaps_sku</code> + keyword. Add a <code>tlaps_sku</code> column and try again.` };
+      renderKeywordSearch();
+      return;
+    }
+    let inserted = 0, errMsg = '';
+    const batch = 500;
+    for (let i = 0; i < records.length; i += batch) {
+      const slice = records.slice(i, i + batch);
+      const { error } = await sb.from('keywords').insert(slice);
+      if (error) errMsg = error.message;
+      else inserted += slice.length;
+    }
+    state.kwUploadResult = errMsg
+      ? { kind: 'err', html: `Inserted ${inserted} of ${records.length}. Error: <code>${escapeHTML(errMsg)}</code>` }
+      : { kind: 'ok', html: `Inserted <strong>${inserted}</strong> keyword row${inserted===1?'':'s'} (${skipped} skipped — missing tlaps_sku or term).` };
+    await loadKeywords();
+    renderKeywordSearch();
+  } catch (e) {
+    state.kwUploadResult = { kind: 'err', html: `Import failed: <code>${escapeHTML(e.message || String(e))}</code>` };
+    renderKeywordSearch();
+  }
+}
+
+// ====== ORDERS tab — PO-grouped + summary cards + import ======
 function renderOrdersView() {
   if (!state.loaded.ops) {
-    app.innerHTML = `<div class="loading">Loading orders…</div>`;
+    app.innerHTML = loadingHTML('Loading orders…');
     loadOps().then(() => renderOrdersView()).catch(e => {
       app.innerHTML = `<div class="loading" style="color:var(--red)">Failed to load orders: ${escapeHTML(e.message || String(e))}</div>`;
     });
@@ -646,11 +1332,13 @@ function renderOrdersView() {
   }
 
   const f = state.ordersFilter;
-  const filtered = state.orders.filter(o => {
+  // Filter line-level orders first
+  const filteredLines = state.orders.filter(o => {
     if (f.type   && o.order_type !== f.type) return false;
     if (f.status && o.status     !== f.status) return false;
     if (f.dateFrom && o.order_date && o.order_date < f.dateFrom) return false;
     if (f.dateTo   && o.order_date && o.order_date > f.dateTo)   return false;
+    if (f.fc && (o.ship_to_fc_code || '').toUpperCase() !== f.fc.toUpperCase()) return false;
     if (f.search) {
       const q = f.search.toLowerCase();
       const hay = [o.amazon_order_id, o.amazon_po_code, o.tlaps_sku, o.dhg_sku, o.ship_to_name, o.ship_to_fc_code, o.tracking_number]
@@ -660,19 +1348,81 @@ function renderOrdersView() {
     return true;
   });
 
-  const stats = {
-    total: state.orders.length,
-    dropship: state.orders.filter(o => o.order_type === 'dropship').length,
-    stocking: state.orders.filter(o => o.order_type === 'stocking').length,
-    open: state.orders.filter(o => o.status && !['paid','cancelled','fulfilled'].includes(o.status)).length,
-    shown: filtered.length,
-  };
+  // Group into PO-level rows by amazon_po_code (or amazon_order_id for dropship single-line)
+  const groups = {};
+  for (const o of filteredLines) {
+    const key = o.amazon_po_code || o.amazon_order_id || o.order_id;
+    if (!groups[key]) groups[key] = {
+      key,
+      po_code: o.amazon_po_code || o.amazon_order_id || o.order_id,
+      order_type: o.order_type,
+      order_date: o.order_date,
+      ship_date: o.ship_date,
+      fc_code: o.ship_to_fc_code,
+      ship_to_city: o.ship_to_city,
+      ship_to_state: o.ship_to_state,
+      ship_to_name: o.ship_to_name,
+      lines: [],
+      total_units: 0,
+      total_cost: 0,
+      total_revenue: 0,
+      statuses: new Set(),
+    };
+    groups[key].lines.push(o);
+    groups[key].total_units += Number(o.quantity ?? o.qty_ordered ?? 0);
+    const cost = Number(o.unit_cost) || 0;
+    const price = Number(o.unit_price) || 0;
+    const qty = Number(o.quantity ?? o.qty_ordered ?? 0);
+    groups[key].total_cost += cost * qty;
+    groups[key].total_revenue += price * qty;
+    if (o.status) groups[key].statuses.add(o.status);
+    // Take the earliest order date and latest ship date if mixed
+    if (o.order_date && (!groups[key].order_date || o.order_date < groups[key].order_date)) groups[key].order_date = o.order_date;
+    if (!groups[key].fc_code && o.ship_to_fc_code) groups[key].fc_code = o.ship_to_fc_code;
+  }
+  const groupList = Object.values(groups).sort((a, b) => (b.order_date || '').localeCompare(a.order_date || ''));
+
+  // Summary cards
+  const allStocking = state.orders.filter(o => o.order_type === 'stocking');
+  const allDropship = state.orders.filter(o => o.order_type === 'dropship');
+  const openOrders = state.orders.filter(o => o.status && !['paid','cancelled','fulfilled','shipped','delivered'].includes(o.status));
+  const openPoCodes = new Set(openOrders.map(o => o.amazon_po_code || o.amazon_order_id || o.order_id));
+  const unitsPending = openOrders.reduce((s, o) => s + Number(o.quantity ?? o.qty_ordered ?? 0), 0);
+  const revenuePending = openOrders.reduce((s, o) => s + Number(o.unit_price ?? 0) * Number(o.quantity ?? o.qty_ordered ?? 0), 0);
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  const shippedThisWeek = state.orders.filter(o => ['shipped','delivered','fulfilled','invoiced','paid'].includes(o.status) && o.ship_date && o.ship_date >= weekAgo);
+  const shippedUnits = shippedThisWeek.reduce((s, o) => s + Number(o.quantity ?? o.qty_ordered ?? 0), 0);
+
+  const fcOptions = [...new Set(state.orders.map(o => o.ship_to_fc_code).filter(Boolean))].sort();
 
   app.innerHTML = `
+    <div class="summary-cards">
+      <div class="card blue">
+        <div class="label">Open POs</div>
+        <div class="value">${openPoCodes.size}</div>
+        <div class="sub">${openOrders.length} order line(s) pending</div>
+      </div>
+      <div class="card amber">
+        <div class="label">Units Pending</div>
+        <div class="value">${fmtInt(unitsPending)}</div>
+        <div class="sub">on open orders</div>
+      </div>
+      <div class="card">
+        <div class="label">Revenue Pending</div>
+        <div class="value">${fmt$(revenuePending)}</div>
+        <div class="sub">unit_price × qty</div>
+      </div>
+      <div class="card">
+        <div class="label">Shipped This Week</div>
+        <div class="value">${fmtInt(shippedUnits)}</div>
+        <div class="sub">${shippedThisWeek.length} line(s) since ${weekAgo}</div>
+      </div>
+    </div>
+
     <div class="section">
       <h2>Import ERP Order File</h2>
       <p style="color:var(--gray-text);font-size:13px;margin:0 0 10px">
-        Upload a ConnectedBusiness export (.xlsx). The dashboard auto-detects file type by the
+        Upload a ConnectedBusiness export (.xlsx). Auto-detects file type by the
         <code>source</code> column: <strong>Amazon Drop ship</strong> or <strong>Amazon Stocking</strong>.
         For stocking POs, only rows with <code>item name</code> starting with <code>TLAPS-</code> are kept.
       </p>
@@ -685,7 +1435,7 @@ function renderOrdersView() {
     </div>
 
     <div class="section">
-      <h2>Orders (${stats.shown} of ${stats.total} · ${stats.dropship} dropship · ${stats.stocking} stocking · ${stats.open} open)</h2>
+      <h2>Amazon Purchase Orders (${groupList.length} POs · ${allDropship.length} dropship lines · ${allStocking.length} stocking lines)</h2>
       <div class="filter-bar">
         <input type="search" id="oSearch" placeholder="Search PO, SKU, FC, tracking…" value="${escapeHTML(f.search)}">
         <select id="oType">
@@ -698,143 +1448,146 @@ function renderOrdersView() {
           ${['received','po_sent','confirmed','picked_up','fulfilled','shipped','invoiced','paid','cancelled']
               .map(s => `<option value="${s}" ${f.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
-        <input type="date" id="oFrom" value="${f.dateFrom}">
-        <input type="date" id="oTo" value="${f.dateTo}">
-        <button class="btn warn" id="aggBtn" ${stats.stocking ? '' : 'disabled'}>Generate DHG PO from stocking lines…</button>
+        <select id="oFc">
+          <option value="">All FCs</option>
+          ${fcOptions.map(c => `<option value="${c}" ${f.fc===c?'selected':''}>${c}</option>`).join('')}
+        </select>
+        <input type="date" id="oFrom" value="${f.dateFrom}" title="Order date from">
+        <input type="date" id="oTo" value="${f.dateTo}" title="Order date to">
+        <button class="btn warn" id="aggBtn" ${allStocking.length ? '' : 'disabled'}>Generate Supplier PO from stocking…</button>
       </div>
       <table>
         <thead>
           <tr>
-            <th>Date</th><th>Type</th><th>Amazon PO</th><th>TLAPS SKU</th><th>DHG SKU</th>
-            <th>Qty</th><th>Ship-to</th><th>Status</th><th>Label</th>
+            <th>PO Number</th><th>Order Date</th><th>Type</th><th>FC</th><th>Ship-To City</th>
+            <th>SKU Count</th><th>Total Units</th><th>Total Revenue</th><th>Status</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${filtered.length ? filtered.map(o => renderOrderRow(o)).join('') : '<tr><td colspan="9" class="loading">No orders match the filter. Upload an ERP file above.</td></tr>'}
+          ${groupList.length ? groupList.map(g => renderPoGroupRow(g)).join('') : '<tr><td colspan="10" class="loading">No orders match the filter. Upload an ERP file above.</td></tr>'}
         </tbody>
       </table>
     </div>
   `;
 
+  // Upload zone
   const zone = document.getElementById('upZone');
   const input = document.getElementById('upInput');
-  const pick = document.getElementById('upPick');
-  pick.onclick = () => input.click();
+  document.getElementById('upPick').onclick = () => input.click();
   zone.onclick = (e) => { if (e.target === zone) input.click(); };
   input.onchange = e => { if (e.target.files[0]) handleErpFile(e.target.files[0]); };
   zone.ondragover = e => { e.preventDefault(); zone.classList.add('dragover'); };
   zone.ondragleave = () => zone.classList.remove('dragover');
-  zone.ondrop = e => {
-    e.preventDefault(); zone.classList.remove('dragover');
-    if (e.dataTransfer.files[0]) handleErpFile(e.dataTransfer.files[0]);
-  };
+  zone.ondrop = e => { e.preventDefault(); zone.classList.remove('dragover'); if (e.dataTransfer.files[0]) handleErpFile(e.dataTransfer.files[0]); };
 
+  // Filters
   document.getElementById('oSearch').oninput = e => { state.ordersFilter.search = e.target.value; renderOrdersView(); document.getElementById('oSearch').focus(); };
   document.getElementById('oType').onchange   = e => { state.ordersFilter.type = e.target.value; renderOrdersView(); };
   document.getElementById('oStatus').onchange = e => { state.ordersFilter.status = e.target.value; renderOrdersView(); };
+  document.getElementById('oFc').onchange     = e => { state.ordersFilter.fc = e.target.value; renderOrdersView(); };
   document.getElementById('oFrom').onchange   = e => { state.ordersFilter.dateFrom = e.target.value; renderOrdersView(); };
   document.getElementById('oTo').onchange     = e => { state.ordersFilter.dateTo = e.target.value; renderOrdersView(); };
   document.getElementById('aggBtn').onclick   = () => openAggregateModal();
 
-  document.querySelectorAll('tbody tr[data-oid]').forEach(tr => {
-    tr.onclick = () => {
-      state.expandedOrderId = state.expandedOrderId === tr.dataset.oid ? null : tr.dataset.oid;
+  // Row expand
+  document.querySelectorAll('tbody tr[data-pokey]').forEach(tr => {
+    tr.onclick = (e) => {
+      if (e.target.closest('button') || e.target.closest('select')) return;
+      state.expandedOrderId = state.expandedOrderId === tr.dataset.pokey ? null : tr.dataset.pokey;
       renderOrdersView();
     };
   });
-  document.querySelectorAll('select[data-oid-status]').forEach(sel => {
-    sel.onchange = (e) => { e.stopPropagation(); updateOrderStatus(sel.dataset.oidStatus, sel.value); };
+  document.querySelectorAll('select[data-line-status]').forEach(sel => {
+    sel.onchange = e => { e.stopPropagation(); updateOrderStatus(sel.dataset.lineStatus, sel.value); };
     sel.onclick = e => e.stopPropagation();
   });
 }
 
-function renderUploadResult() {
-  if (!state.uploadResult) return '';
-  const r = state.uploadResult;
-  const cls = r.kind || 'ok';
-  return `<div class="upload-result ${cls}">${r.html}</div>`;
-}
-
-function renderOrderRow(o) {
-  const oid = o.amazon_order_id || o.order_id;
-  const expanded = state.expandedOrderId === oid;
-  const ship = o.ship_to_fc_code || [o.ship_to_name, o.ship_to_city, o.ship_to_state].filter(Boolean).join(', ') || '—';
+function renderPoGroupRow(g) {
+  const expanded = state.expandedOrderId === g.key;
+  const statuses = [...g.statuses];
+  const status = statuses.length === 1 ? statuses[0] : 'mixed';
+  const skuCount = new Set(g.lines.map(l => l.tlaps_sku)).size;
+  const fcOrCity = g.fc_code || g.ship_to_city || '—';
   return `
-    <tr data-oid="${escapeHTML(oid)}" class="${expanded?'expanded':''}">
-      <td>${fmtDate(o.order_date)}</td>
-      <td>${typePill(o.order_type)}</td>
-      <td><code>${escapeHTML(o.amazon_po_code || oid || '—')}</code></td>
-      <td>${escapeHTML(o.tlaps_sku || '—')}</td>
-      <td>${escapeHTML(o.dhg_sku || '—')}</td>
-      <td>${o.quantity ?? o.qty_ordered ?? '—'}</td>
-      <td>${escapeHTML(ship)}</td>
-      <td>${statusPill(o.status)}</td>
-      <td>${o.label_processed ? '<span class="pill yes">Yes</span>' : '<span class="pill nis">No</span>'}</td>
+    <tr data-pokey="${escapeHTML(g.key)}" class="${expanded?'expanded':''}">
+      <td><strong><code>${escapeHTML(g.po_code || '—')}</code></strong></td>
+      <td>${fmtDate(g.order_date)}</td>
+      <td>${typePill(g.order_type)}</td>
+      <td>${g.fc_code ? `<code>${escapeHTML(g.fc_code)}</code>` : '—'}</td>
+      <td>${escapeHTML(g.ship_to_city || (g.ship_to_name ? g.ship_to_name.slice(0, 24) : '—'))}</td>
+      <td>${skuCount}</td>
+      <td>${fmtInt(g.total_units)}</td>
+      <td>${fmt$(g.total_revenue)}</td>
+      <td>${status === 'mixed' ? '<span class="pill nis">mixed</span>' : statusPill(status)}</td>
+      <td><button class="btn btn-sm secondary" data-pokey-expand="${escapeHTML(g.key)}">${expanded ? 'Hide' : 'Lines'}</button></td>
     </tr>
-    ${expanded ? renderOrderDetail(o) : ''}
+    ${expanded ? renderPoGroupDetail(g) : ''}
   `;
 }
 
-function renderOrderDetail(o) {
-  const oid = o.amazon_order_id || o.order_id;
-  const statuses = ['received','po_sent','confirmed','picked_up','fulfilled','shipped','invoiced','paid','cancelled'];
+function renderPoGroupDetail(g) {
+  const statusOpts = ['received','po_sent','confirmed','picked_up','fulfilled','shipped','invoiced','paid','cancelled'];
   return `
     <tr class="detail-row">
-      <td colspan="9">
-        <div class="detail-grid">
-          <div class="detail-block">
-            <h4>Order Info</h4>
-            <p><strong>Amazon order ID:</strong> <code>${escapeHTML(oid)}</code></p>
-            <p><strong>Amazon PO code:</strong> <code>${escapeHTML(o.amazon_po_code || '—')}</code></p>
-            ${o.amazon_ref_1 ? `<p><strong>Ref #1:</strong> ${escapeHTML(o.amazon_ref_1)}</p>` : ''}
-            ${o.amazon_ref_2 ? `<p><strong>Ref #2:</strong> ${escapeHTML(o.amazon_ref_2)}</p>` : ''}
-            <p><strong>Order date:</strong> ${fmtDate(o.order_date)}</p>
-            <p><strong>Type:</strong> ${typePill(o.order_type)}</p>
-            <p><strong>Status:</strong> ${statusPill(o.status)}
-              <select data-oid-status="${escapeHTML(oid)}" style="margin-left:8px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;">
-                <option value="">— change status —</option>
-                ${statuses.map(s => `<option value="${s}">${s}</option>`).join('')}
-              </select>
-            </p>
-            <p><strong>Shipping method:</strong> ${escapeHTML(o.shipping_method || '—')}</p>
-            <p><strong>Tracking:</strong> ${escapeHTML(o.tracking_number || '—')}</p>
-          </div>
-          <div class="detail-block">
-            <h4>Ship-to</h4>
-            <p>${escapeHTML(o.ship_to_name || '—')}</p>
-            <p>${escapeHTML(o.ship_to_address || '')}</p>
-            <p>${escapeHTML(o.ship_to_city || '')} ${escapeHTML(o.ship_to_state || '')} ${escapeHTML(o.ship_to_postal || '')}</p>
-            ${o.ship_to_fc_code ? `<p><strong>FC code:</strong> <code>${escapeHTML(o.ship_to_fc_code)}</code></p>` : ''}
-          </div>
-          <div class="detail-block">
-            <h4>SKU + Pricing</h4>
-            <p><strong>TLAPS SKU:</strong> ${escapeHTML(o.tlaps_sku || '—')}</p>
-            <p><strong>DHG SKU:</strong> ${escapeHTML(o.dhg_sku || '—')}</p>
-            <p><strong>ASIN:</strong> ${escapeHTML(o.asin || '—')}</p>
-            <p><strong>Quantity:</strong> ${o.quantity ?? o.qty_ordered ?? '—'}</p>
-            <p><strong>Unit price (Amazon→I3):</strong> ${fmt$(o.unit_price)}</p>
-            <p><strong>Unit cost (DHG col_e):</strong> ${fmt$(o.unit_cost)}</p>
-            <p><strong>Line total:</strong> ${fmt$(o.line_total)}</p>
-          </div>
-          <div class="detail-block">
-            <h4>ERP / Label / DHG PO</h4>
-            <p><strong>ERP SO #:</strong> ${escapeHTML(o.erp_so_number || '—')}</p>
-            <p><strong>ERP Invoice #:</strong> ${escapeHTML(o.erp_invoice_number || '—')}</p>
-            <p><strong>Label processed:</strong> ${o.label_processed ? '<span class="pill yes">Yes</span>' : '<span class="pill nis">No</span>'}</p>
-            ${o.label_filename ? `<p><strong>Label file:</strong> <code>${escapeHTML(o.label_filename)}</code></p>` : ''}
-            <p><strong>Linked DHG PO:</strong> ${o.dhg_po_id ? `#${o.dhg_po_id}` : '—'}</p>
-          </div>
+      <td colspan="10">
+        <div style="margin-bottom:10px">
+          <strong>${g.lines.length} line item${g.lines.length===1?'':'s'}</strong>
+          ${g.fc_code ? `· FC: <code>${escapeHTML(g.fc_code)}</code>` : ''}
+          ${g.ship_to_name ? `· Ship-to: ${escapeHTML(g.ship_to_name)}` : ''}
+          · Total revenue: <strong>${fmt$(g.total_revenue)}</strong>
+          · Total cost: <strong>${fmt$(g.total_cost)}</strong>
+          · Margin: <strong class="${marginClass(g.total_revenue ? ((g.total_revenue - g.total_cost) / g.total_revenue * 100) : null)}">${g.total_revenue ? ((g.total_revenue - g.total_cost) / g.total_revenue * 100).toFixed(1) + '%' : '—'}</strong>
         </div>
+        <table class="agg-table">
+          <thead>
+            <tr>
+              <th>Order ID</th><th>TLAPS SKU</th><th>Supplier SKU</th><th>ASIN</th>
+              <th>Qty</th><th>Unit Price</th><th>Unit Cost</th><th>Line Total</th>
+              <th>Tracking</th><th>Status</th><th>Label</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${g.lines.map(o => {
+              const oid = o.amazon_order_id || o.order_id;
+              return `
+                <tr>
+                  <td><code>${escapeHTML(oid || '—')}</code></td>
+                  <td>${escapeHTML(o.tlaps_sku || '—')}</td>
+                  <td>${escapeHTML(o.dhg_sku || '—')}</td>
+                  <td>${o.asin ? `<a class="asin-link" href="https://www.amazon.com/dp/${o.asin}" target="_blank" rel="noopener">${escapeHTML(o.asin)}</a>` : '—'}</td>
+                  <td>${o.quantity ?? o.qty_ordered ?? '—'}</td>
+                  <td>${fmt$(o.unit_price)}</td>
+                  <td>${fmt$(o.unit_cost)}</td>
+                  <td>${fmt$(o.line_total)}</td>
+                  <td>${o.tracking_number ? '<code style="font-size:11px">'+escapeHTML(o.tracking_number)+'</code>' : '—'}</td>
+                  <td>${statusPill(o.status)}
+                    <select data-line-status="${escapeHTML(oid)}" style="margin-top:4px;width:100%;padding:2px 4px;border:1px solid var(--border);border-radius:3px;font-size:11px">
+                      <option value="">change…</option>
+                      ${statusOpts.map(s => `<option value="${s}">${s}</option>`).join('')}
+                    </select>
+                  </td>
+                  <td>${o.label_processed ? '<span class="pill yes">Yes</span>' : '<span class="pill nis">No</span>'}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
       </td>
     </tr>
   `;
 }
 
-// ====== Excel import handler ======
-async function handleErpFile(file) {
-  state.uploadResult = { kind: 'warn', html: `Reading <code>${escapeHTML(file.name)}</code>…` };
-  renderOrdersView();
+function renderUploadResult() {
+  if (!state.uploadResult) return '';
+  const r = state.uploadResult;
+  return `<div class="upload-result ${r.kind || 'ok'}">${r.html}</div>`;
+}
 
+// ====== Excel import handler (preserved from prior dashboard) ======
+async function handleErpFile(file) {
+  state.uploadResult = { kind: 'warn', html: `<span class="spinner"></span>Reading <code>${escapeHTML(file.name)}</code>…` };
+  renderOrdersView();
   try {
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, { type: 'array', cellDates: true });
@@ -857,7 +1610,6 @@ async function handleErpFile(file) {
       quantity:             header.findIndex(h => h.includes('quantity') || h === 'qty'),
       price:                header.findIndex(h => h === 'price' || h.includes('unit price')),
     };
-
     if (idx.sales_rep_order_code < 0) idx.sales_rep_order_code = 0;
     if (idx.ship_to_name < 0)         idx.ship_to_name = 4;
     if (idx.ship_to_address < 0)      idx.ship_to_address = 5;
@@ -872,9 +1624,7 @@ async function handleErpFile(file) {
     if (idx.price < 0)                idx.price = 18;
 
     const records = [];
-    let totalRows = 0;
-    let skipped = 0;
-    let detectedType = null;
+    let totalRows = 0, skipped = 0, detectedType = null;
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i];
       if (!r || !r.length) continue;
@@ -935,7 +1685,7 @@ async function handleErpFile(file) {
         html: `Parsed ${totalRows} rows but found <strong>0 importable orders</strong>. ` +
               `Check the <code>source</code> column (must be "Amazon Drop ship" or "Amazon Stocking") ` +
               `and that <code>item name</code> starts with <code>TLAPS-</code> for stocking POs.`
-        };
+      };
       renderOrdersView();
       return;
     }
@@ -948,13 +1698,11 @@ async function handleErpFile(file) {
       if (error) { errors += batch.length; errMsg = error.message; }
       else inserted += batch.length;
     }
-
-    const tlaps = records.length;
     if (errors === 0) {
       state.uploadResult = {
         kind: 'ok',
         html: `Imported <strong>${inserted}</strong> ${detectedType} order line${inserted===1?'':'s'} from <code>${escapeHTML(file.name)}</code>. ` +
-              `Found ${tlaps} TLAPS lines out of ${totalRows} total rows (${skipped} skipped — non-TLAPS or unrecognized).`
+              `Found ${records.length} TLAPS lines out of ${totalRows} total rows (${skipped} skipped — non-TLAPS or unrecognized).`
       };
     } else {
       state.uploadResult = {
@@ -979,7 +1727,7 @@ async function updateOrderStatus(orderId, newStatus) {
   renderOrdersView();
 }
 
-// ====== Aggregate stocking lines → DHG PO modal ======
+// ====== Aggregate stocking lines → Supplier PO modal ======
 function openAggregateModal() {
   const candidates = state.orders.filter(o =>
     o.order_type === 'stocking' &&
@@ -1013,14 +1761,14 @@ function openAggregateModal() {
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
   backdrop.innerHTML = `
-    <div class="modal" id="aggModal">
-      <h3>Generate DHG PO — Aggregate Stocking Lines</h3>
+    <div class="modal lg" id="aggModal">
+      <h3>Generate Supplier PO — Aggregate Stocking Lines</h3>
       <p style="color:var(--gray-text);font-size:13px">
-        Aggregating <strong>${candidates.length}</strong> stocking line(s) by DHG SKU.
+        Aggregating <strong>${candidates.length}</strong> stocking line(s) by Supplier SKU.
         Edit unit costs as needed, then create the PO.
       </p>
       <table class="agg-table">
-        <thead><tr><th>DHG SKU</th><th>TLAPS SKU</th><th>Total Qty</th><th>Unit Cost</th><th>Line Total</th></tr></thead>
+        <thead><tr><th>Supplier SKU</th><th>TLAPS SKU</th><th>Total Qty</th><th>Unit Cost</th><th>Line Total</th></tr></thead>
         <tbody>
           ${groups.map((g, i) => `
             <tr>
@@ -1042,7 +1790,7 @@ function openAggregateModal() {
       </div>
       <div class="modal-actions">
         <button class="btn secondary" id="aggCancel">Cancel</button>
-        <button class="btn" id="aggCreate">Create DHG PO</button>
+        <button class="btn" id="aggCreate">Create Supplier PO</button>
       </div>
     </div>
   `;
@@ -1068,16 +1816,16 @@ function openAggregateModal() {
     btn.disabled = true; btn.textContent = 'Creating…';
     try {
       const notes = document.getElementById('aggNotes').value.trim() || null;
-      const totalUnits = groups.reduce((s, g) => s + g.qty, 0);
-      const totalCost  = groups.reduce((s, g) => s + g.qty * g.unit_cost, 0);
+      const totalUnitsCalc = groups.reduce((s, g) => s + g.qty, 0);
+      const totalCostCalc  = groups.reduce((s, g) => s + g.qty * g.unit_cost, 0);
       const poNumber = await nextDhgPoNumber();
       const { data: poRows, error: poErr } = await sb.from('dhg_purchase_orders').insert({
         po_number: poNumber,
         po_date: new Date().toISOString().slice(0, 10),
         order_type: 'stocking',
         status: 'draft',
-        total_units: totalUnits,
-        total_cost: totalCost,
+        total_units: totalUnitsCalc,
+        total_cost: totalCostCalc,
         notes,
       }).select('id').single();
       if (poErr) throw poErr;
@@ -1100,20 +1848,19 @@ function openAggregateModal() {
         entry_type: 'dhg_payable',
         related_po: poNumber,
         related_dhg_po_id: poId,
-        amount: totalCost,
-        description: `Stocking PO ${poNumber} — ${groups.length} SKU(s), ${totalUnits} units`,
+        amount: totalCostCalc,
+        description: `Stocking PO ${poNumber} — ${groups.length} SKU(s), ${totalUnitsCalc} units`,
         entry_date: new Date().toISOString().slice(0, 10),
         due_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
         status: 'pending',
       });
       backdrop.remove();
       await loadOps();
-      state.view = 'dhg_pos';
       setView('dhg_pos');
     } catch (e) {
       console.error(e);
-      alert('Failed to create DHG PO: ' + (e.message || e));
-      btn.disabled = false; btn.textContent = 'Create DHG PO';
+      alert('Failed to create Supplier PO: ' + (e.message || e));
+      btn.disabled = false; btn.textContent = 'Create Supplier PO';
     }
   };
 }
@@ -1133,39 +1880,96 @@ async function nextDhgPoNumber() {
   return `${prefix}${String(next).padStart(4, '0')}`;
 }
 
-// ====== DHG PURCHASE ORDERS tab ======
+// ====== SUPPLIER PURCHASE ORDERS tab ======
 function renderDhgPosView() {
   if (!state.loaded.ops) {
-    app.innerHTML = `<div class="loading">Loading DHG POs…</div>`;
+    app.innerHTML = loadingHTML('Loading supplier POs…');
     loadOps().then(() => renderDhgPosView());
     return;
   }
   const linesByPo = {};
   for (const ln of state.dhgPoLines) (linesByPo[ln.dhg_po_id] ||= []).push(ln);
 
+  const f = state.poFilter;
+  const filtered = state.dhgPos.filter(p => {
+    if (f.status && p.status !== f.status) return false;
+    if (f.search) {
+      const q = f.search.toLowerCase();
+      const hay = [p.po_number, p.notes, p.sent_to].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  // Summary
+  const outstanding = state.dhgPos.filter(p => !['paid','cancelled'].includes(p.status));
+  const outstandingValue = outstanding.reduce((s, p) => s + Number(p.calc_total_cost ?? p.total_cost ?? 0), 0);
+  const monthStart = new Date(); monthStart.setDate(1);
+  const monthStartStr = monthStart.toISOString().slice(0, 10);
+  const monthlyPos = state.dhgPos.filter(p => p.po_date && p.po_date >= monthStartStr);
+  const monthlySpend = monthlyPos.reduce((s, p) => s + Number(p.calc_total_cost ?? p.total_cost ?? 0), 0);
+  const allTimeSpend = state.dhgPos.reduce((s, p) => s + Number(p.calc_total_cost ?? p.total_cost ?? 0), 0);
+
   app.innerHTML = `
+    <div class="summary-cards">
+      <div class="card amber">
+        <div class="label">Outstanding Supplier POs</div>
+        <div class="value">${fmt$(outstandingValue)}</div>
+        <div class="sub">${outstanding.length} PO(s) · status not paid/cancelled</div>
+      </div>
+      <div class="card">
+        <div class="label">Monthly Spend</div>
+        <div class="value">${fmt$(monthlySpend)}</div>
+        <div class="sub">${monthlyPos.length} PO(s) since ${monthStartStr}</div>
+      </div>
+      <div class="card blue">
+        <div class="label">All-Time PO Value</div>
+        <div class="value">${fmt$(allTimeSpend)}</div>
+        <div class="sub">${state.dhgPos.length} PO(s) ever sent</div>
+      </div>
+      <div class="card">
+        <div class="label">Lines Tracked</div>
+        <div class="value">${state.dhgPoLines.length}</div>
+        <div class="sub">across all supplier POs</div>
+      </div>
+    </div>
+
     <div class="section">
-      <h2>DHG Purchase Orders (${state.dhgPos.length})</h2>
+      <h2>Supplier Purchase Orders</h2>
+      <div class="filter-bar">
+        <input type="search" id="poSearch" placeholder="Search PO #, notes, recipient…" value="${escapeHTML(f.search)}">
+        <select id="poStatus">
+          <option value="">All statuses</option>
+          ${['draft','sent','confirmed','picked_up','received','invoiced','paid','cancelled'].map(s => `<option value="${s}" ${f.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <button class="btn" id="poCreateBtn">+ Create Supplier PO</button>
+        <div class="stats">${filtered.length} of ${state.dhgPos.length}</div>
+      </div>
       <p style="color:var(--gray-text);font-size:13px;margin:0 0 10px">
-        POs sent to Raymond/Wendy. Use the Orders tab → "Generate DHG PO" to create a new one from stocking lines.
+        POs created from open Amazon stocking lines (via Orders tab) or manually here.
       </p>
       <table>
         <thead>
           <tr>
             <th>PO #</th><th>Date</th><th>Type</th><th>Status</th>
-            <th>Lines</th><th>Total Units</th><th>Total Cost</th><th>Sent To</th>
+            <th>Lines</th><th>Total Units</th><th>Total Cost</th><th>Sent To</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${state.dhgPos.length ? state.dhgPos.map(p => renderDhgPoRow(p, linesByPo[p.id] || [])).join('') :
-            '<tr><td colspan="8" class="loading">No DHG POs yet. Generate one from the Orders tab.</td></tr>'}
+          ${filtered.length ? filtered.map(p => renderDhgPoRow(p, linesByPo[p.id] || [])).join('') :
+            '<tr><td colspan="9" class="loading">No POs match the filter. Use the Orders tab to aggregate stocking lines, or click "+ Create Supplier PO".</td></tr>'}
         </tbody>
       </table>
     </div>
   `;
 
+  document.getElementById('poSearch').oninput = e => { state.poFilter.search = e.target.value; renderDhgPosView(); document.getElementById('poSearch').focus(); };
+  document.getElementById('poStatus').onchange = e => { state.poFilter.status = e.target.value; renderDhgPosView(); };
+  document.getElementById('poCreateBtn').onclick = () => openCreatePoModal();
+
   document.querySelectorAll('tbody tr[data-poid]').forEach(tr => {
-    tr.onclick = () => {
+    tr.onclick = (e) => {
+      if (e.target.closest('button')) return;
       state.expandedDhgPoId = state.expandedDhgPoId === tr.dataset.poid ? null : tr.dataset.poid;
       renderDhgPosView();
     };
@@ -1187,6 +1991,10 @@ function renderDhgPoRow(p, lines) {
       <td>${p.calc_total_units ?? p.total_units ?? 0}</td>
       <td>${fmt$(p.calc_total_cost ?? p.total_cost)}</td>
       <td>${escapeHTML(p.sent_to || '—')}</td>
+      <td>
+        <button class="btn btn-sm secondary" data-po-action="print" data-poid="${p.id}">Print</button>
+        <button class="btn btn-sm secondary" data-po-action="email" data-poid="${p.id}">Email</button>
+      </td>
     </tr>
     ${expanded ? renderDhgPoDetail(p, lines) : ''}
   `;
@@ -1206,11 +2014,12 @@ function renderDhgPoDetail(p, lines) {
   const next = transitions[p.status] || [];
   return `
     <tr class="detail-row">
-      <td colspan="8">
+      <td colspan="9">
         <div class="actions-row">
           ${next.map(([s, label]) => `<button class="btn" data-po-action="${s}" data-poid="${p.id}">${label}</button>`).join('')}
           ${p.status !== 'cancelled' && p.status !== 'paid' ? `<button class="btn warn" data-po-action="cancelled" data-poid="${p.id}">Cancel PO</button>` : ''}
           <button class="btn secondary" data-po-action="print" data-poid="${p.id}">Print PO</button>
+          <button class="btn secondary" data-po-action="email" data-poid="${p.id}">Email PO</button>
         </div>
         <div class="detail-grid">
           <div class="detail-block">
@@ -1237,7 +2046,7 @@ function renderDhgPoDetail(p, lines) {
         </div>
         <h4 style="font-family:'Playfair Display',serif;color:var(--green);margin:16px 0 8px">Line items</h4>
         <table class="agg-table">
-          <thead><tr><th>DHG SKU</th><th>TLAPS SKU</th><th>Qty</th><th>Unit Cost</th><th>Line Total</th><th>Box</th><th>Handling</th></tr></thead>
+          <thead><tr><th>Supplier SKU</th><th>TLAPS SKU</th><th>Qty</th><th>Unit Cost</th><th>Line Total</th><th>Box</th><th>Handling</th></tr></thead>
           <tbody>
             ${lines.length ? lines.map(l => `
               <tr>
@@ -1259,6 +2068,7 @@ function renderDhgPoDetail(p, lines) {
 
 async function doPoAction(action, poId) {
   if (action === 'print') { openPrintablePo(poId); return; }
+  if (action === 'email') { openEmailPo(poId); return; }
   const updates = { status: action, updated_at: new Date().toISOString() };
   if (action === 'sent')      updates.sent_at      = new Date().toISOString();
   if (action === 'confirmed') updates.confirmed_at = new Date().toISOString();
@@ -1275,7 +2085,7 @@ async function doPoAction(action, poId) {
         related_po: po.po_number,
         related_dhg_po_id: poId,
         amount: po.calc_total_cost ?? po.total_cost,
-        description: `Paid DHG PO ${po.po_number}`,
+        description: `Paid Supplier PO ${po.po_number}`,
         entry_date: new Date().toISOString().slice(0, 10),
         paid_date:  new Date().toISOString().slice(0, 10),
         status: 'paid',
@@ -1307,10 +2117,10 @@ function openPrintablePo(poId) {
     </style></head><body>
     <h1>I3 Enterprise — Purchase Order</h1>
     <div class="meta">PO #${escapeHTML(po.po_number)} · ${fmtDate(po.po_date)} · Type: ${escapeHTML(po.order_type)} · Status: ${escapeHTML(po.status)}</div>
-    <p><strong>Vendor:</strong> DHG (Verde Win Sight) · Hacienda Heights, CA<br>
-       <strong>Contact:</strong> ${escapeHTML(po.sent_to || 'Raymond Peng / Wendy Zhong')}</p>
+    <p><strong>Vendor:</strong> Supplier · Hacienda Heights, CA<br>
+       <strong>Contact:</strong> ${escapeHTML(po.sent_to || 'Supplier contact')}</p>
     <table>
-      <thead><tr><th>DHG SKU</th><th>TLAPS SKU</th><th>Qty</th><th>Unit Cost</th><th>Line Total</th></tr></thead>
+      <thead><tr><th>Supplier SKU</th><th>TLAPS SKU</th><th>Qty</th><th>Unit Cost</th><th>Line Total</th></tr></thead>
       <tbody>
         ${lines.map(l => `<tr><td>${escapeHTML(l.dhg_sku)}</td><td>${escapeHTML(l.tlaps_sku || '')}</td><td>${l.quantity}</td><td>${fmt$(l.unit_cost)}</td><td>${fmt$(l.line_total)}</td></tr>`).join('')}
       </tbody>
@@ -1329,10 +2139,228 @@ function openPrintablePo(poId) {
   win.document.close();
 }
 
-// ====== ACCOUNTING tab ======
+function openEmailPo(poId) {
+  const po = state.dhgPos.find(p => p.id === poId);
+  const lines = state.dhgPoLines.filter(l => l.dhg_po_id === poId);
+  if (!po) return;
+  const subject = `Purchase Order ${po.po_number} — ${po.order_type}`;
+  const lineSummary = lines.map(l => `  - ${l.dhg_sku} (${l.tlaps_sku || ''}): ${l.quantity} units @ $${Number(l.unit_cost || 0).toFixed(2)} = $${Number(l.line_total || 0).toFixed(2)}`).join('\n');
+  const body = [
+    `Hi,`,
+    ``,
+    `Please find Purchase Order ${po.po_number} below.`,
+    ``,
+    `PO Number: ${po.po_number}`,
+    `Date: ${fmtDate(po.po_date)}`,
+    `Type: ${po.order_type}`,
+    `Status: ${po.status}`,
+    ``,
+    `Line items:`,
+    lineSummary || '  (none)',
+    ``,
+    `Totals:`,
+    `  Total units: ${po.calc_total_units ?? po.total_units ?? 0}`,
+    `  Total cost:  $${Number(po.calc_total_cost ?? po.total_cost ?? 0).toFixed(2)}`,
+    ``,
+    po.notes ? `Notes: ${po.notes}` : '',
+    ``,
+    `Thanks,`,
+    `I3 Enterprise`,
+  ].filter(Boolean).join('\n');
+  const to = po.sent_to || '';
+  const href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href = href;
+}
+
+// ====== Create Supplier PO Modal (manual / from open Amazon POs) ======
+function openCreatePoModal() {
+  // Build list of open Amazon POs (stocking, not yet aggregated)
+  const openLines = state.orders.filter(o => o.order_type === 'stocking' && !o.dhg_po_id && !['fulfilled','shipped','invoiced','paid','cancelled'].includes(o.status || ''));
+  const byPo = {};
+  for (const o of openLines) {
+    const k = o.amazon_po_code || o.amazon_order_id || o.order_id;
+    if (!byPo[k]) byPo[k] = { po_code: k, lines: [] };
+    byPo[k].lines.push(o);
+  }
+  const openPos = Object.values(byPo);
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal lg">
+      <h3>Create Supplier PO</h3>
+      <p style="color:var(--gray-text);font-size:13px">
+        Select open Amazon stocking POs to aggregate, or add SKUs manually below. Cost prepopulates from each product's <code>col_e</code>.
+      </p>
+      <div class="form-grid">
+        <div>
+          <label>Recipient Email (sent_to)</label>
+          <input id="cp-sent_to" placeholder="supplier@example.com">
+        </div>
+        <div>
+          <label>Pickup Date</label>
+          <input id="cp-pickup" type="date">
+        </div>
+        <div class="full">
+          <label>Notes</label>
+          <textarea id="cp-notes" rows="2"></textarea>
+        </div>
+      </div>
+
+      <h4 style="font-family:'Playfair Display',serif;color:var(--green);margin:16px 0 6px">Select open Amazon stocking POs</h4>
+      ${openPos.length ? `
+        <table class="agg-table" style="margin-bottom:12px">
+          <thead><tr><th>Select</th><th>Amazon PO</th><th>Lines</th><th>Total Units</th></tr></thead>
+          <tbody>
+            ${openPos.map((g, i) => `
+              <tr>
+                <td><input type="checkbox" data-amzpo-i="${i}" class="cp-amzpo"></td>
+                <td><code>${escapeHTML(g.po_code)}</code></td>
+                <td>${g.lines.length}</td>
+                <td>${g.lines.reduce((s, l) => s + Number(l.quantity ?? l.qty_ordered ?? 0), 0)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <button class="btn secondary btn-sm" id="cp-loadSel">Load selected → fill SKU table</button>
+      ` : `<p class="muted">No open Amazon stocking POs. Add lines manually below.</p>`}
+
+      <h4 style="font-family:'Playfair Display',serif;color:var(--green);margin:16px 0 6px">PO Lines</h4>
+      <table class="agg-table">
+        <thead><tr><th>Supplier SKU</th><th>TLAPS SKU</th><th>Qty</th><th>Unit Cost</th><th>Line Total</th><th></th></tr></thead>
+        <tbody id="cp-lines"></tbody>
+        <tfoot>
+          <tr><th colspan="2">Totals</th><th id="cp-units">0</th><th></th><th id="cp-total">$0.00</th><th></th></tr>
+        </tfoot>
+      </table>
+      <button class="btn secondary btn-sm" id="cp-addLine" style="margin-top:8px">+ Add manual line</button>
+
+      <div class="modal-actions">
+        <button class="btn secondary" id="cp-cancel">Cancel</button>
+        <button class="btn" id="cp-save">Create PO</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+
+  const linesBody = document.getElementById('cp-lines');
+  let lineState = []; // { dhg_sku, tlaps_sku, qty, unit_cost, source_order_ids }
+
+  const renderLines = () => {
+    linesBody.innerHTML = lineState.map((l, i) => `
+      <tr>
+        <td><input class="cp-l-dhg" data-i="${i}" value="${escapeHTML(l.dhg_sku)}" style="width:100%;padding:4px;border:1px solid var(--border);border-radius:3px"></td>
+        <td><input class="cp-l-tlaps" data-i="${i}" value="${escapeHTML(l.tlaps_sku || '')}" style="width:100%;padding:4px;border:1px solid var(--border);border-radius:3px"></td>
+        <td><input class="cp-l-qty" data-i="${i}" type="number" value="${l.qty}" style="width:80px;padding:4px;border:1px solid var(--border);border-radius:3px"></td>
+        <td><input class="cp-l-cost" data-i="${i}" type="number" step="0.01" value="${l.unit_cost}" style="width:80px;padding:4px;border:1px solid var(--border);border-radius:3px"></td>
+        <td>${fmt$((Number(l.qty)||0) * (Number(l.unit_cost)||0))}</td>
+        <td><button class="btn btn-sm danger" data-rm="${i}">×</button></td>
+      </tr>
+    `).join('') || '<tr><td colspan="6" class="muted">No lines yet. Click "+ Add manual line" or load from selected Amazon POs.</td></tr>';
+    const totals = lineState.reduce((acc, l) => {
+      const q = Number(l.qty) || 0;
+      const c = Number(l.unit_cost) || 0;
+      acc.units += q;
+      acc.cost += q * c;
+      return acc;
+    }, { units: 0, cost: 0 });
+    document.getElementById('cp-units').textContent = totals.units;
+    document.getElementById('cp-total').textContent = fmt$(totals.cost);
+    // wire events
+    linesBody.querySelectorAll('.cp-l-dhg').forEach(e => e.oninput = ev => { lineState[ev.target.dataset.i].dhg_sku = ev.target.value; });
+    linesBody.querySelectorAll('.cp-l-tlaps').forEach(e => e.oninput = ev => { lineState[ev.target.dataset.i].tlaps_sku = ev.target.value; });
+    linesBody.querySelectorAll('.cp-l-qty').forEach(e => e.oninput = ev => { lineState[ev.target.dataset.i].qty = ev.target.value; renderLines(); });
+    linesBody.querySelectorAll('.cp-l-cost').forEach(e => e.oninput = ev => { lineState[ev.target.dataset.i].unit_cost = ev.target.value; renderLines(); });
+    linesBody.querySelectorAll('button[data-rm]').forEach(b => b.onclick = ev => { lineState.splice(Number(b.dataset.rm), 1); renderLines(); });
+  };
+  renderLines();
+
+  document.getElementById('cp-addLine').onclick = () => {
+    lineState.push({ dhg_sku: '', tlaps_sku: '', qty: 1, unit_cost: 0, source_order_ids: [] });
+    renderLines();
+  };
+  if (openPos.length) {
+    document.getElementById('cp-loadSel').onclick = () => {
+      const checked = [...document.querySelectorAll('.cp-amzpo:checked')].map(cb => Number(cb.dataset.amzpoI));
+      const selected = checked.map(i => openPos[i]);
+      const merged = {};
+      for (const g of selected) {
+        for (const o of g.lines) {
+          const key = o.dhg_sku || o.tlaps_sku || 'UNKNOWN';
+          if (!merged[key]) {
+            const product = state.productsBySku[o.tlaps_sku] || {};
+            merged[key] = { dhg_sku: o.dhg_sku || product.dhg_sku || '', tlaps_sku: o.tlaps_sku, qty: 0, unit_cost: product.col_e || 0, source_order_ids: [] };
+          }
+          merged[key].qty += Number(o.quantity ?? o.qty_ordered ?? 0);
+          merged[key].source_order_ids.push(o.amazon_order_id || o.order_id);
+        }
+      }
+      lineState = Object.values(merged);
+      renderLines();
+    };
+  }
+  document.getElementById('cp-cancel').onclick = () => backdrop.remove();
+  backdrop.onclick = e => { if (e.target === backdrop) backdrop.remove(); };
+  document.getElementById('cp-save').onclick = async () => {
+    const btn = document.getElementById('cp-save');
+    const valid = lineState.filter(l => l.dhg_sku && Number(l.qty) > 0);
+    if (!valid.length) { alert('Add at least one line with a Supplier SKU and qty > 0.'); return; }
+    btn.disabled = true; btn.textContent = 'Creating…';
+    try {
+      const totalUnits = valid.reduce((s, l) => s + Number(l.qty), 0);
+      const totalCost = valid.reduce((s, l) => s + Number(l.qty) * Number(l.unit_cost || 0), 0);
+      const poNumber = await nextDhgPoNumber();
+      const sentTo = document.getElementById('cp-sent_to').value.trim() || null;
+      const pickup = document.getElementById('cp-pickup').value || null;
+      const notes = document.getElementById('cp-notes').value.trim() || null;
+      const { data: poRows, error: poErr } = await sb.from('dhg_purchase_orders').insert({
+        po_number: poNumber,
+        po_date: new Date().toISOString().slice(0, 10),
+        order_type: 'stocking',
+        status: 'draft',
+        total_units: totalUnits,
+        total_cost: totalCost,
+        sent_to: sentTo,
+        pickup_date: pickup,
+        notes,
+      }).select('id').single();
+      if (poErr) throw poErr;
+      const poId = poRows.id;
+      const lineRows = valid.map(l => ({
+        dhg_po_id: poId, dhg_sku: l.dhg_sku, tlaps_sku: l.tlaps_sku || null,
+        quantity: Number(l.qty), unit_cost: Number(l.unit_cost) || 0,
+      }));
+      const { error: lineErr } = await sb.from('dhg_po_lines').insert(lineRows);
+      if (lineErr) throw lineErr;
+      // Link source order_ids if any
+      const allOrderIds = [...new Set(valid.flatMap(l => l.source_order_ids || []))];
+      if (allOrderIds.length) {
+        await sb.from('orders').update({ dhg_po_id: poId, status: 'po_sent', updated_at: new Date().toISOString() }).in('order_id', allOrderIds);
+      }
+      await sb.from('accounting').insert({
+        entry_type: 'dhg_payable',
+        related_po: poNumber,
+        related_dhg_po_id: poId,
+        amount: totalCost,
+        description: `Supplier PO ${poNumber} — ${valid.length} SKU(s), ${totalUnits} units`,
+        entry_date: new Date().toISOString().slice(0, 10),
+        due_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+        status: 'pending',
+      });
+      backdrop.remove();
+      await loadOps();
+      renderDhgPosView();
+    } catch (e) {
+      alert('Failed: ' + (e.message || e));
+      btn.disabled = false; btn.textContent = 'Create PO';
+    }
+  };
+}
+
+// ====== ACCOUNTING tab — full P&L with charts ======
 function renderAccountingView() {
   if (!state.loaded.ops) {
-    app.innerHTML = `<div class="loading">Loading accounting…</div>`;
+    app.innerHTML = loadingHTML('Loading accounting…');
     loadOps().then(() => renderAccountingView());
     return;
   }
@@ -1341,57 +2369,213 @@ function renderAccountingView() {
     received_from_amazon: 0, net_position: 0,
     overdue_payables: 0, overdue_receivables: 0,
   };
+
+  // Compute Revenue MTD, COGS MTD from orders
+  const monthStart = new Date(); monthStart.setDate(1);
+  const monthStartStr = monthStart.toISOString().slice(0, 10);
+  const mtdOrders = state.orders.filter(o => o.order_date && o.order_date >= monthStartStr);
+  const revenueMtd = mtdOrders.reduce((s, o) => s + Number(o.unit_price ?? 0) * Number(o.quantity ?? o.qty_ordered ?? 0), 0);
+  const mtdPos = state.dhgPos.filter(p => p.po_date && p.po_date >= monthStartStr);
+  const cogsMtd = mtdPos.reduce((s, p) => s + Number(p.calc_total_cost ?? p.total_cost ?? 0), 0);
+  const grossMtd = revenueMtd - cogsMtd;
+  const grossPctMtd = revenueMtd > 0 ? (grossMtd / revenueMtd * 100) : null;
+
   const payables    = state.accounting.filter(a => a.entry_type === 'dhg_payable');
   const receivables = state.accounting.filter(a => a.entry_type === 'amazon_receivable');
   const payments    = state.accounting.filter(a => a.entry_type === 'payment_out' || a.entry_type === 'payment_in');
 
+  // Monthly P&L breakdown
+  const monthly = computeMonthlyPL();
+  // Per-SKU profitability
+  const perSku = computePerSkuProfitability();
+
   app.innerHTML = `
     <div class="summary-cards">
       <div class="card">
-        <div class="label">Open payables (to DHG)</div>
-        <div class="value">${fmt$(s.open_payables)}</div>
+        <div class="label">Revenue MTD</div>
+        <div class="value">${fmt$(revenueMtd)}</div>
+        <div class="sub">since ${monthStartStr}</div>
       </div>
       <div class="card">
-        <div class="label">Open receivables (from Amazon)</div>
+        <div class="label">COGS MTD</div>
+        <div class="value">${fmt$(cogsMtd)}</div>
+        <div class="sub">supplier POs since ${monthStartStr}</div>
+      </div>
+      <div class="card ${grossMtd < 0 ? 'red' : ''}">
+        <div class="label">Gross Margin MTD</div>
+        <div class="value">${fmt$(grossMtd)}</div>
+        <div class="sub ${marginClass(grossPctMtd)}">${grossPctMtd != null ? grossPctMtd.toFixed(1) + '%' : '—'}</div>
+      </div>
+      <div class="card amber">
+        <div class="label">Open Receivables (Amazon net-60)</div>
         <div class="value">${fmt$(s.open_receivables)}</div>
+        <div class="sub">${s.overdue_receivables > 0 ? `<span style="color:var(--red)">${fmt$(s.overdue_receivables)} overdue</span>` : 'none overdue'}</div>
+      </div>
+      <div class="card amber">
+        <div class="label">Open Payables (to Supplier)</div>
+        <div class="value">${fmt$(s.open_payables)}</div>
+        <div class="sub">${s.overdue_payables > 0 ? `<span style="color:var(--red)">${fmt$(s.overdue_payables)} overdue</span>` : 'none overdue'}</div>
       </div>
       <div class="card ${s.net_position < 0 ? 'red' : ''}">
-        <div class="label">Net position</div>
+        <div class="label">Net Position</div>
         <div class="value">${fmt$(s.net_position)}</div>
+        <div class="sub">receivables − payables</div>
       </div>
-      <div class="card">
-        <div class="label">Paid to DHG (lifetime)</div>
-        <div class="value">${fmt$(s.paid_to_dhg)}</div>
-      </div>
-      <div class="card">
-        <div class="label">Received from Amazon (lifetime)</div>
-        <div class="value">${fmt$(s.received_from_amazon)}</div>
-      </div>
-      ${(s.overdue_payables > 0 || s.overdue_receivables > 0) ? `
-        <div class="card amber">
-          <div class="label">Overdue (P / R)</div>
-          <div class="value" style="font-size:18px">${fmt$(s.overdue_payables)} / ${fmt$(s.overdue_receivables)}</div>
-        </div>` : ''}
+    </div>
+
+    <div class="chart-wrap">
+      <h3>Monthly Revenue vs COGS</h3>
+      <div class="chart-canvas"><canvas id="chartMonthly"></canvas></div>
     </div>
 
     <div class="section">
-      <h2>Owed to DHG (${payables.length})</h2>
-      ${renderAcctTable(payables, 'payable')}
+      <h2>Monthly P&amp;L Breakdown</h2>
+      ${monthly.length ? `
+        <table>
+          <thead><tr>
+            <th>Month</th><th>Revenue</th><th>COGS</th><th>Gross Profit</th><th>Margin %</th>
+            <th>Units Sold</th><th>Avg ASP</th><th>Avg Cost</th>
+          </tr></thead>
+          <tbody>
+            ${monthly.map(m => `
+              <tr>
+                <td><strong>${m.month}</strong></td>
+                <td>${fmt$(m.revenue)}</td>
+                <td>${fmt$(m.cogs)}</td>
+                <td>${fmt$(m.profit)}</td>
+                <td><span class="${marginClass(m.marginPct)}">${m.marginPct != null ? m.marginPct.toFixed(1) + '%' : '—'}</span></td>
+                <td>${fmtInt(m.units)}</td>
+                <td>${fmt$(m.avgAsp)}</td>
+                <td>${fmt$(m.avgCost)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      ` : '<p class="muted" style="padding:14px;background:#fff;border:1px solid var(--border);border-radius:4px">No monthly data yet — import orders and create supplier POs to populate.</p>'}
     </div>
 
+    <div class="section">
+      <h2>Per-SKU Profitability</h2>
+      ${perSku.length ? `
+        <table>
+          <thead><tr>
+            <th>SKU</th><th>Product</th><th>Units Sold</th><th>Revenue</th>
+            <th>COGS</th><th>Margin</th><th>Margin %</th>
+          </tr></thead>
+          <tbody>
+            ${perSku.map(s => `
+              <tr>
+                <td><strong>${escapeHTML(s.tlaps_sku)}</strong></td>
+                <td>${escapeHTML(s.title)}</td>
+                <td>${fmtInt(s.units)}</td>
+                <td>${fmt$(s.revenue)}</td>
+                <td>${fmt$(s.cogs)}</td>
+                <td>${fmt$(s.profit)}</td>
+                <td><span class="${marginClass(s.marginPct)}">${s.marginPct != null ? s.marginPct.toFixed(1) + '%' : '—'}</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      ` : '<p class="muted" style="padding:14px;background:#fff;border:1px solid var(--border);border-radius:4px">No SKU sales data yet.</p>'}
+    </div>
+
+    <div class="section">
+      <h2>Owed to Supplier (${payables.length})</h2>
+      ${renderAcctTable(payables, 'payable')}
+    </div>
     <div class="section">
       <h2>Owed by Amazon (${receivables.length})</h2>
       ${renderAcctTable(receivables, 'receivable')}
     </div>
-
     <div class="section">
       <h2>Payments (${payments.length})</h2>
       ${renderAcctTable(payments, 'payment')}
     </div>
   `;
 
+  // Wire mark-paid
   document.querySelectorAll('button[data-acct-action]').forEach(btn => {
     btn.onclick = () => markAcctPaid(Number(btn.dataset.acctId));
+  });
+
+  // Render Chart.js after DOM is in place
+  setTimeout(() => renderMonthlyChart(monthly), 0);
+}
+
+function computeMonthlyPL() {
+  // Aggregate revenue by month from orders, COGS by month from supplier POs
+  const monthMap = {};
+  const monthOf = (s) => (s ? String(s).slice(0, 7) : null);
+  for (const o of state.orders) {
+    const m = monthOf(o.order_date);
+    if (!m) continue;
+    monthMap[m] = monthMap[m] || { month: m, revenue: 0, cogs: 0, units: 0 };
+    const qty = Number(o.quantity ?? o.qty_ordered ?? 0);
+    monthMap[m].revenue += Number(o.unit_price ?? 0) * qty;
+    monthMap[m].units += qty;
+  }
+  for (const p of state.dhgPos) {
+    const m = monthOf(p.po_date);
+    if (!m) continue;
+    monthMap[m] = monthMap[m] || { month: m, revenue: 0, cogs: 0, units: 0 };
+    monthMap[m].cogs += Number(p.calc_total_cost ?? p.total_cost ?? 0);
+  }
+  return Object.values(monthMap).map(r => {
+    r.profit = r.revenue - r.cogs;
+    r.marginPct = r.revenue > 0 ? (r.profit / r.revenue * 100) : null;
+    r.avgAsp = r.units > 0 ? r.revenue / r.units : null;
+    r.avgCost = r.units > 0 ? r.cogs / r.units : null;
+    return r;
+  }).sort((a, b) => a.month.localeCompare(b.month));
+}
+
+function computePerSkuProfitability() {
+  // Aggregate by tlaps_sku
+  const skuMap = {};
+  for (const o of state.orders) {
+    if (!o.tlaps_sku) continue;
+    skuMap[o.tlaps_sku] = skuMap[o.tlaps_sku] || { tlaps_sku: o.tlaps_sku, units: 0, revenue: 0, cogs: 0 };
+    const qty = Number(o.quantity ?? o.qty_ordered ?? 0);
+    skuMap[o.tlaps_sku].units += qty;
+    skuMap[o.tlaps_sku].revenue += Number(o.unit_price ?? 0) * qty;
+    skuMap[o.tlaps_sku].cogs += Number(o.unit_cost ?? 0) * qty;
+  }
+  return Object.values(skuMap).map(r => {
+    const product = state.productsBySku[r.tlaps_sku] || {};
+    const listing = state.listings[r.tlaps_sku] || {};
+    r.title = (listing.gen_title || product.dhg_sku || '').slice(0, 60);
+    r.profit = r.revenue - r.cogs;
+    r.marginPct = r.revenue > 0 ? (r.profit / r.revenue * 100) : null;
+    return r;
+  }).sort((a, b) => (b.marginPct ?? -Infinity) - (a.marginPct ?? -Infinity));
+}
+
+function renderMonthlyChart(monthly) {
+  const canvas = document.getElementById('chartMonthly');
+  if (!canvas || !window.Chart) return;
+  if (state.charts.monthlyPL) { state.charts.monthlyPL.destroy(); state.charts.monthlyPL = null; }
+  if (!monthly.length) {
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#6c6c6c';
+    ctx.font = '14px Outfit, sans-serif';
+    ctx.fillText('No monthly data yet — import orders and create supplier POs to populate.', 20, 80);
+    return;
+  }
+  state.charts.monthlyPL = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: monthly.map(m => m.month),
+      datasets: [
+        { label: 'Revenue', data: monthly.map(m => m.revenue), backgroundColor: '#1b3a1e' },
+        { label: 'COGS',    data: monthly.map(m => m.cogs),    backgroundColor: '#b8965a' },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' } },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => '$' + Number(v).toLocaleString() } } },
+    },
   });
 }
 
@@ -1414,7 +2598,7 @@ function renderAcctTable(rows, kind) {
             <td>${fmtDate(a.due_date)}</td>
             <td>${fmtDate(a.paid_date)}</td>
             <td>${statusPill(a.status)}</td>
-            <td>${(kind !== 'payment' && a.status !== 'paid') ? `<button class="btn secondary" data-acct-action="paid" data-acct-id="${a.id}">Mark Paid</button>` : ''}</td>
+            <td>${(kind !== 'payment' && a.status !== 'paid') ? `<button class="btn secondary btn-sm" data-acct-action="paid" data-acct-id="${a.id}">Mark Paid</button>` : ''}</td>
           </tr>
         `).join('')}
       </tbody>
@@ -1431,6 +2615,53 @@ async function markAcctPaid(id) {
   renderAccountingView();
 }
 
+// ====== Settings panel ======
+function openSettings() {
+  const panel = document.getElementById('settingsPanel');
+  const body = document.getElementById('settingsBody');
+  const live = state.products.filter(p => p.status === 'live' && !isLegacyProduct(p)).length;
+  const totalRev = state.orders.reduce((s, o) => s + Number(o.unit_price ?? 0) * Number(o.quantity ?? o.qty_ordered ?? 0), 0);
+  body.innerHTML = `
+    <h4 style="font-family:'Playfair Display',serif;color:var(--green);margin:8px 0">Connection</h4>
+    <div class="stat-row"><span class="stat-label">Status</span><span><span class="conn-dot ${state.conn.status}"></span>${state.conn.status === 'ok' ? 'Connected' : state.conn.status}</span></div>
+    <div class="stat-row"><span class="stat-label">Last refresh</span><span>${state.conn.lastRefresh ? state.conn.lastRefresh.toLocaleTimeString() : '—'}</span></div>
+    ${state.conn.error ? `<div class="stat-row"><span class="stat-label">Error</span><span style="color:var(--red);font-size:11px">${escapeHTML(state.conn.error)}</span></div>` : ''}
+    <div class="stat-row"><span class="stat-label">Supabase project</span><span><code>poescwjdppbweqfdqcue</code></span></div>
+
+    <h4 style="font-family:'Playfair Display',serif;color:var(--green);margin:16px 0 8px">Catalog</h4>
+    <div class="stat-row"><span class="stat-label">Live SKUs</span><span><strong>${live}</strong></span></div>
+    <div class="stat-row"><span class="stat-label">All products</span><span>${state.products.length}</span></div>
+    <div class="stat-row"><span class="stat-label">Listings (gen)</span><span>${Object.keys(state.listings).length}</span></div>
+    <div class="stat-row"><span class="stat-label">Image rows</span><span>${Object.values(state.images).reduce((s, v) => s + v.length, 0)}</span></div>
+    <div class="stat-row"><span class="stat-label">Keyword rows</span><span>${state.keywords.length}</span></div>
+
+    <h4 style="font-family:'Playfair Display',serif;color:var(--green);margin:16px 0 8px">Operations</h4>
+    <div class="stat-row"><span class="stat-label">Orders (lines)</span><span>${state.orders.length}</span></div>
+    <div class="stat-row"><span class="stat-label">Supplier POs</span><span>${state.dhgPos.length}</span></div>
+    <div class="stat-row"><span class="stat-label">Total Revenue (Amazon)</span><span>${fmt$(totalRev)}</span></div>
+    <div class="stat-row"><span class="stat-label">Open Payables</span><span>${fmt$(state.acctSummary?.open_payables)}</span></div>
+    <div class="stat-row"><span class="stat-label">Open Receivables</span><span>${fmt$(state.acctSummary?.open_receivables)}</span></div>
+
+    <div style="margin-top:18px">
+      <button class="btn" id="settingsRefresh">↻ Refresh All Data</button>
+    </div>
+
+    <div style="margin-top:18px;padding:10px;background:var(--cream);border-radius:4px;font-size:11px;color:var(--gray-text)">
+      <strong>Build:</strong> Operations Dashboard v2 · ${new Date().toISOString().slice(0, 10)}<br>
+      Hosted on GitHub Pages · vanilla JS · Supabase + XLSX + Chart.js
+    </div>
+  `;
+  panel.classList.add('open');
+  document.getElementById('settingsRefresh').onclick = async () => {
+    await Promise.all([loadCatalog(), loadOps(), loadKeywords()]);
+    openSettings();
+    setView(state.view);
+  };
+}
+function closeSettings() {
+  document.getElementById('settingsPanel').classList.remove('open');
+}
+
 // ====== View dispatcher ======
 function setView(view) {
   state.view = view;
@@ -1442,17 +2673,55 @@ function setView(view) {
   else if (view === 'accounting') renderAccountingView();
 }
 
-document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
-
-loadCatalog()
-  .then(() => {
-    setView('grid');
-    return loadOps();
-  })
-  .catch(e => {
-    console.error(e);
-    app.innerHTML = `<div class="loading" style="color:var(--red)">Failed to load: ${escapeHTML(e.message || String(e))}</div>`;
+// ====== Quick actions ======
+function setupQuickActions() {
+  const root = document.getElementById('quickActions');
+  const toggle = document.getElementById('qaToggle');
+  toggle.onclick = (e) => { e.stopPropagation(); root.classList.toggle('open'); };
+  document.addEventListener('click', () => root.classList.remove('open'));
+  root.querySelectorAll('button[data-qa]').forEach(b => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      root.classList.remove('open');
+      const a = b.dataset.qa;
+      if (a === 'import_po')      { setView('orders'); setTimeout(() => document.getElementById('upInput')?.click(), 100); }
+      else if (a === 'create_dhg_po') { setView('dhg_pos'); setTimeout(() => document.getElementById('poCreateBtn')?.click(), 100); }
+      else if (a === 'add_product')  { setView('grid'); setTimeout(() => openProductModal(null), 100); }
+      else if (a === 'goto_orders')  setView('orders');
+      else if (a === 'goto_dhg')     setView('dhg_pos');
+      else if (a === 'goto_pl')      setView('accounting');
+      else if (a === 'goto_keywords') setView('keyword');
+    };
   });
+}
+
+// ====== Boot ======
+document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+document.getElementById('settingsBtn').onclick = openSettings;
+document.getElementById('settingsClose').onclick = closeSettings;
+document.getElementById('connStatus').onclick = async () => {
+  setConn('connecting');
+  await Promise.all([loadCatalog(), loadOps(), loadKeywords()]);
+  setView(state.view);
+};
+setupQuickActions();
+
+(async function boot() {
+  setConn('connecting');
+  try {
+    await loadCatalog();
+    setView('grid');
+    // Load ops + keywords in background
+    Promise.all([loadOps(), loadKeywords()]).then(() => {
+      // Re-render current view if it depends on ops/keywords
+      if (['orders','dhg_pos','accounting','keyword'].includes(state.view)) setView(state.view);
+    });
+  } catch (e) {
+    console.error(e);
+    setConn('err', e.message || String(e));
+    app.innerHTML = `<div class="loading" style="color:var(--red)">Failed to load: ${escapeHTML(e.message || String(e))}</div>`;
+  }
+})();
 </script>
 </body>
 </html>
